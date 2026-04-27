@@ -505,6 +505,11 @@ let draftUi = Object.assign({}, DEFAULT_UI);
 let badgeMeta = JSON.parse(JSON.stringify(INITIAL_BADGE_META));
 let memberCredentials = {};
 let loggedInMember = null;
+// Restore shared session on load
+try{
+  const _su=localStorage.getItem("ss_user");
+  if(_su){const _u=JSON.parse(_su);loggedInMember=_u.shadowId||null;}
+}catch(e){}
 let activeMemberId = null;
 let currentFilter = "ALL";
 let activeGroup = "create";
@@ -699,12 +704,13 @@ function submitMemberLogin(){
   const pw=el("ml-pw").value;
   if(memberCredentials[id]&&memberCredentials[id]===pw){
     loggedInMember=id;closeMemberLogin();renderTopbar();
+    localStorage.setItem("ss_user", JSON.stringify({shadowId:id, codename:(members.find(m=>m.shadowId===id)||{}).codename||id, passphrase:pw}));
     openMember(id);
   } else {
     show("ml-error");el("ml-id").classList.add("error");el("ml-pw").classList.add("error");
   }
 }
-function logoutMember(){loggedInMember=null;renderTopbar();if(activeMemberId)renderDetail();}
+function logoutMember(){loggedInMember=null;localStorage.removeItem("ss_user");localStorage.removeItem("shade_user");renderTopbar();if(activeMemberId)renderDetail();}
 
 // ── ADMIN HOLD TRIGGER ────────────────────────────────────────────
 function startHold(){
