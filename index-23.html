@@ -1,0 +1,586 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Shadowseekers</title>
+<link href="https://fonts.googleapis.com/css2?family=Cinzel+Decorative:wght@700;900&family=Cinzel:wght@400;600&family=Cormorant+Garamond:ital,wght@0,300;0,400;1,300;1,400&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet"/>
+<style>
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
+html{scroll-behavior:smooth}
+:root{
+  --bg:#03020a;--border:rgba(255,255,255,.07);
+  --accent:#8b6fff;--gold:#d4a843;--mist:#8880aa;--white:#f0ecff;--dim:#3a3560;
+  --green:#10b981;--red:#e05c5c;
+}
+body{background:var(--bg);color:var(--white);font-family:'Cormorant Garamond',serif;overflow-x:hidden;cursor:none}
+body::before{content:'';position:fixed;inset:0;z-index:-1;
+  background:radial-gradient(ellipse 100% 55% at 50% 0%,rgba(70,35,160,.2) 0%,transparent 60%),
+  radial-gradient(ellipse 45% 45% at 0% 70%,rgba(50,20,120,.12) 0%,transparent 50%),#03020a;
+  pointer-events:none}
+#cur,#curR{position:fixed;pointer-events:none;border-radius:50%;z-index:9999;transform:translate(-50%,-50%);transition:width .2s,height .2s,background .2s}
+#cur{width:8px;height:8px;background:var(--accent)}
+#curR{width:30px;height:30px;border:1px solid rgba(139,111,255,.35);z-index:9998}
+body.hov #cur{width:14px;height:14px;background:var(--gold)}
+body.hov #curR{width:44px;height:44px;border-color:rgba(212,168,67,.45)}
+nav{position:fixed;top:0;left:0;right:0;z-index:800;height:64px;padding:0 3rem;display:flex;align-items:center;justify-content:space-between;background:rgba(3,2,10,.92);border-bottom:1px solid var(--border);backdrop-filter:blur(16px)}
+.logo{font-family:'Cinzel Decorative',serif;font-size:.9rem;letter-spacing:.2em;color:var(--white);text-decoration:none;text-shadow:0 0 20px rgba(139,111,255,.5)}
+.nav-center{display:flex;list-style:none;height:100%;gap:0}
+.nav-center>li{position:relative;height:100%;display:flex;align-items:center}
+.nav-center>li>a,.nav-center>li>span{font-family:'Space Mono',monospace;font-size:.52rem;letter-spacing:.18em;text-transform:uppercase;color:var(--mist);text-decoration:none;cursor:pointer;padding:0 .9rem;height:100%;display:flex;align-items:center;transition:color .25s;border-bottom:2px solid transparent;white-space:nowrap}
+.nav-center>li:hover>a,.nav-center>li>span:hover{color:var(--white);border-bottom-color:var(--accent)}
+.drop-menu{display:none;position:absolute;top:100%;left:0;min-width:150px;background:rgba(5,3,18,.97);border:1px solid var(--border);border-top:2px solid var(--accent)}
+.nav-center>li:hover .drop-menu{display:block}
+.drop-menu a{display:block;padding:.55rem 1rem;font-family:'Space Mono',monospace;font-size:.5rem;letter-spacing:.15em;text-transform:uppercase;color:var(--mist);text-decoration:none;border-left:2px solid transparent;transition:all .2s}
+.drop-menu a:hover{color:var(--white);background:rgba(139,111,255,.08);border-left-color:var(--accent)}
+.nav-right{display:flex;align-items:center;gap:1rem}
+.nav-login-btn{font-family:'Space Mono',monospace;font-size:.52rem;letter-spacing:.18em;text-transform:uppercase;color:var(--accent);background:none;border:1px solid rgba(139,111,255,.4);padding:.4rem 1rem;cursor:pointer;transition:all .25s}
+.nav-login-btn:hover{background:var(--accent);color:#fff}
+.nav-user-badge{font-family:'Space Mono',monospace;font-size:.5rem;letter-spacing:.12em;color:var(--green);display:flex;align-items:center;gap:.5rem}
+.nav-user-dot{width:6px;height:6px;border-radius:50%;background:var(--green);box-shadow:0 0 6px var(--green)}
+.nav-logout-btn{font-family:'Space Mono',monospace;font-size:.46rem;letter-spacing:.15em;text-transform:uppercase;color:var(--dim);background:none;border:none;cursor:pointer;transition:color .2s}
+.nav-logout-btn:hover{color:var(--red)}
+.hamburger{display:none;flex-direction:column;gap:5px;background:none;border:none;cursor:pointer;padding:4px}
+.hamburger span{display:block;width:22px;height:2px;background:var(--mist)}
+.mob-menu{display:none;position:fixed;top:64px;left:0;right:0;bottom:0;background:rgba(3,2,10,.98);z-index:700;padding:2rem;overflow-y:auto;flex-direction:column;gap:.4rem}
+.mob-menu.open{display:flex}
+.mob-menu a,.mob-grp{font-family:'Space Mono',monospace;font-size:.6rem;letter-spacing:.18em;text-transform:uppercase;color:var(--mist);text-decoration:none;padding:.75rem 0;border-bottom:1px solid var(--border);transition:color .2s}
+.mob-menu a:hover{color:var(--white)}
+.mob-grp{color:var(--accent);font-size:.48rem;margin-top:1rem;border-bottom:none;padding-bottom:.2rem}
+.mob-sub{padding-left:1rem;font-size:.55rem}
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:2000;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(8px)}
+.modal-overlay.hidden{display:none}
+.modal-box{background:#08071a;border:1px solid var(--border);border-top:2px solid var(--accent);padding:3rem 2.5rem;width:min(440px,90vw);position:relative}
+.modal-title{font-family:'Cinzel Decorative',serif;font-size:1.1rem;color:var(--white);margin-bottom:.3rem;text-shadow:0 0 20px rgba(139,111,255,.4)}
+.modal-sub{font-family:'Space Mono',monospace;font-size:.48rem;letter-spacing:.25em;text-transform:uppercase;color:var(--mist);margin-bottom:2rem}
+.modal-label{font-family:'Space Mono',monospace;font-size:.46rem;letter-spacing:.25em;text-transform:uppercase;color:var(--accent);display:block;margin-bottom:.4rem}
+.modal-input{width:100%;background:rgba(255,255,255,.04);border:1px solid var(--border);color:var(--white);font-family:'Space Mono',monospace;font-size:.62rem;padding:.7rem .9rem;outline:none;transition:border-color .2s;margin-bottom:1.2rem}
+.modal-input:focus{border-color:var(--accent)}
+.modal-input.err{border-color:var(--red)}
+.modal-err{font-family:'Space Mono',monospace;font-size:.48rem;letter-spacing:.15em;color:var(--red);margin-bottom:1rem;display:none}
+.modal-btn{width:100%;background:none;border:1px solid var(--accent);color:var(--accent);font-family:'Space Mono',monospace;font-size:.55rem;letter-spacing:.25em;text-transform:uppercase;padding:.85rem;cursor:pointer;transition:all .3s;position:relative;overflow:hidden}
+.modal-btn::before{content:'';position:absolute;inset:0;background:var(--accent);transform:scaleX(0);transform-origin:left;transition:transform .3s;z-index:-1}
+.modal-btn:hover{color:#fff}.modal-btn:hover::before{transform:scaleX(1)}
+.modal-btn.loading{opacity:.6;pointer-events:none}
+.modal-close{position:absolute;top:1rem;right:1rem;background:none;border:none;color:var(--dim);cursor:pointer;font-size:1rem;transition:color .2s}
+.modal-close:hover{color:var(--white)}
+.dashboard-strip{position:fixed;bottom:0;left:0;right:0;z-index:600;background:rgba(8,7,26,.97);border-top:1px solid var(--border);padding:.8rem 3rem;display:none;align-items:center;justify-content:space-between;backdrop-filter:blur(12px)}
+.dashboard-strip.visible{display:flex}
+.dash-user{display:flex;align-items:center;gap:.8rem}
+.dash-dot{width:8px;height:8px;border-radius:50%;background:var(--green);box-shadow:0 0 8px var(--green)}
+.dash-id{font-family:'Space Mono',monospace;font-size:.52rem;letter-spacing:.15em;color:var(--green)}
+.dash-name{font-family:'Cinzel',serif;font-size:.95rem;color:var(--white)}
+.dash-links{display:flex;gap:.8rem}
+.dash-link{font-family:'Space Mono',monospace;font-size:.5rem;letter-spacing:.18em;text-transform:uppercase;padding:.5rem 1.2rem;border:1px solid;text-decoration:none;transition:all .25s}
+.dash-link.accent{color:var(--accent);border-color:rgba(139,111,255,.4)}.dash-link.accent:hover{background:var(--accent);color:#fff}
+.dash-link.gold{color:var(--gold);border-color:rgba(212,168,67,.4)}.dash-link.gold:hover{background:var(--gold);color:#000}
+.dash-link.dim{color:var(--mist);border-color:rgba(136,128,170,.3);font-size:.44rem;background:none;cursor:pointer}.dash-link.dim:hover{color:var(--white);border-color:var(--mist)}
+.hero{position:relative;height:100vh;min-height:600px;display:flex;align-items:center;justify-content:center;overflow:hidden}
+.hero-bg{position:absolute;inset:0;background-image:url("images/img_0.jpeg");background-size:cover;background-position:center;animation:zoomBg 22s ease-in-out infinite alternate}
+@keyframes zoomBg{from{transform:scale(1)}to{transform:scale(1.07)}}
+.hero-overlay{position:absolute;inset:0;background:linear-gradient(to bottom,rgba(3,2,10,.38) 0%,rgba(3,2,10,.04) 30%,rgba(3,2,10,.04) 55%,rgba(3,2,10,1) 100%),radial-gradient(ellipse 65% 55% at 50% 40%,rgba(55,25,150,.2) 0%,transparent 65%)}
+.hero::before,.hero::after{content:'';position:absolute;left:0;right:0;height:64px;background:var(--bg);z-index:2;pointer-events:none}
+.hero::before{top:0}.hero::after{bottom:0}
+.hero-content{position:relative;z-index:3;display:flex;flex-direction:column;align-items:center;text-align:center;padding:0 2rem;transform:translateY(-8%);animation:fadeUp 1.2s ease .2s both}
+.hero-logo-img{width:min(380px,65vw);filter:drop-shadow(0 0 50px rgba(139,111,255,.55)) drop-shadow(0 0 100px rgba(139,111,255,.18));mix-blend-mode:screen;display:block}
+.hero-tagline{margin-top:1.4rem;font-style:italic;font-size:clamp(.88rem,1.8vw,1.15rem);color:rgba(136,128,170,.82);letter-spacing:.1em;animation:fadeUp 1.2s ease .5s both}
+.hero-cta{margin-top:2rem;animation:fadeUp 1.2s ease .8s both;display:flex;gap:1rem;flex-wrap:wrap;justify-content:center}
+.hero-btn{font-family:'Space Mono',monospace;font-size:.55rem;letter-spacing:.22em;text-transform:uppercase;padding:.8rem 1.8rem;border:1px solid;text-decoration:none;cursor:pointer;background:none;transition:all .3s;position:relative;overflow:hidden}
+.hero-btn::before{content:'';position:absolute;inset:0;transform:scaleX(0);transform-origin:left;transition:transform .3s;z-index:-1}
+.hero-btn-primary{color:var(--accent);border-color:rgba(139,111,255,.5)}.hero-btn-primary::before{background:var(--accent)}.hero-btn-primary:hover{color:#fff}
+.hero-btn-secondary{color:var(--gold);border-color:rgba(212,168,67,.5)}.hero-btn-secondary::before{background:var(--gold)}.hero-btn-secondary:hover{color:#000}
+.hero-scroll{position:absolute;bottom:90px;left:50%;transform:translateX(-50%);z-index:3;display:flex;flex-direction:column;align-items:center;gap:.5rem;animation:fadeUp 1s ease 1s both}
+.hero-scroll span{font-family:'Space Mono',monospace;font-size:.44rem;letter-spacing:.4em;color:var(--dim);text-transform:uppercase}
+.scroll-line{width:1px;height:48px;background:linear-gradient(to bottom,var(--accent),transparent);animation:pulse 2s ease-in-out infinite}
+@keyframes pulse{0%,100%{opacity:.25}50%{opacity:1}}
+@keyframes fadeUp{from{opacity:0;transform:translateY(22px)}to{opacity:1;transform:translateY(0)}}
+.sec{padding:6rem 0}.sec-dark{padding:6rem 0;background:rgba(0,0,0,.28);border-top:1px solid var(--border);border-bottom:1px solid var(--border)}
+.wrap{max-width:1200px;margin:0 auto;padding:0 4rem}
+.tag{font-family:'Space Mono',monospace;font-size:.48rem;letter-spacing:.45em;text-transform:uppercase;color:var(--accent);display:flex;align-items:center;gap:.8rem;margin-bottom:.9rem}
+.tag::before{content:'';display:block;width:22px;height:1px;background:var(--accent)}
+.ttl{font-family:'Cinzel Decorative',serif;font-size:clamp(1.4rem,3vw,2.5rem);font-weight:700;color:var(--white);line-height:1.15;margin-bottom:.8rem}
+.sub{font-style:italic;font-size:1.05rem;color:var(--mist);line-height:1.75;max-width:520px}
+hr.div{border:none;height:1px;background:linear-gradient(90deg,transparent,var(--border),transparent)}
+.split{display:grid;grid-template-columns:1fr 1fr;border:1px solid var(--border);margin-top:3rem}
+.split-img{overflow:hidden;position:relative;min-height:400px}
+.split-img img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center;display:block;transition:transform .7s}
+.split:hover .split-img img{transform:scale(1.03)}
+.split-c{padding:3.5rem;display:flex;flex-direction:column;justify-content:center;background:rgba(255,255,255,.02);border-left:1px solid var(--border);position:relative}
+.split-c::before{content:'';position:absolute;top:0;left:0;bottom:0;width:2px;background:linear-gradient(to bottom,transparent,var(--accent),transparent)}
+.bq{font-family:'Cinzel',serif;font-size:clamp(1rem,1.8vw,1.4rem);color:var(--white);line-height:1.6;padding-left:1.4rem;border-left:2px solid var(--accent);margin-bottom:.7rem}
+.bq-attr{font-family:'Space Mono',monospace;font-size:.5rem;letter-spacing:.3em;text-transform:uppercase;color:var(--accent);padding-left:1.4rem;margin-bottom:1.8rem}
+.body-t{font-style:italic;font-size:1rem;color:var(--mist);line-height:1.8}
+.btn{display:inline-flex;align-items:center;gap:.5rem;margin-top:1.8rem;font-family:'Space Mono',monospace;font-size:.52rem;letter-spacing:.22em;text-transform:uppercase;padding:.8rem 1.7rem;text-decoration:none;border:1px solid;position:relative;overflow:hidden;transition:color .3s;cursor:pointer;background:none}
+.btn::before{content:'';position:absolute;inset:0;transform:scaleX(0);transform-origin:left;transition:transform .35s;z-index:-1}
+.btn-a{color:var(--accent);border-color:rgba(139,111,255,.4)}.btn-a::before{background:var(--accent)}.btn-a:hover{color:#fff}
+.btn-g{color:var(--gold);border-color:rgba(212,168,67,.4)}.btn-g::before{background:var(--gold)}.btn-g:hover{color:#000}
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--border);margin:1.8rem 0}
+.stat{background:rgba(3,2,10,.9);padding:1rem .8rem;text-align:center}
+.stat-n{font-family:'Cinzel',serif;font-size:1.3rem;color:var(--accent);display:block;margin-bottom:.3rem}
+.stat-l{font-family:'Space Mono',monospace;font-size:.4rem;letter-spacing:.15em;text-transform:uppercase;color:var(--dim)}
+.ech-grid{display:grid;grid-template-columns:1fr 1fr;gap:5rem;align-items:center}
+.ech-img{overflow:hidden;border:1px solid var(--border)}
+.ech-img img{width:100%;aspect-ratio:3/2;object-fit:cover;display:block;transition:transform .7s}
+.ech-img:hover img{transform:scale(1.04)}
+.ech-ttl{font-family:'Cinzel Decorative',serif;font-size:clamp(1.2rem,2.2vw,1.8rem);color:var(--gold);line-height:1.2;margin-bottom:.6rem}
+.ech-list{display:flex;flex-direction:column;gap:.6rem;margin:1.6rem 0 2.2rem}
+.ech-item{display:flex;align-items:center;gap:1rem;padding:.7rem 1rem;background:rgba(212,168,67,.04);border:1px solid rgba(212,168,67,.12);transition:all .25s}
+.ech-item:hover{background:rgba(212,168,67,.08);border-color:rgba(212,168,67,.28)}
+.ech-dot{width:6px;height:6px;border-radius:50%;background:var(--gold);flex-shrink:0;box-shadow:0 0 8px var(--gold)}
+.ech-item p{font-family:'Space Mono',monospace;font-size:.52rem;letter-spacing:.08em;color:var(--mist)}
+.car-sec{padding:6rem 0;background:rgba(0,0,0,.32);border-top:1px solid var(--border);border-bottom:1px solid var(--border)}
+.car-wrap{max-width:1200px;margin:0 auto;padding:0 4rem}
+.car-stage{position:relative;margin-top:3rem;border:1px solid var(--border);overflow:hidden}
+.char-slide{display:none}
+.char-slide.active{display:grid;grid-template-columns:1fr 1fr}
+.char-img{position:relative;overflow:hidden;aspect-ratio:16/9;background:#000}
+.char-img img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center;display:block;transition:transform .6s}
+.char-img::after{content:'';position:absolute;top:0;right:0;bottom:0;width:60px;background:linear-gradient(to right,transparent,rgba(3,2,10,.9));z-index:1;pointer-events:none}
+.char-info{background:rgba(3,2,10,.97);border-left:1px solid var(--border);padding:3rem;display:flex;flex-direction:column;justify-content:center;position:relative}
+.char-info::before{content:'';position:absolute;top:0;left:0;bottom:0;width:2px;background:linear-gradient(to bottom,transparent,var(--accent),transparent)}
+.char-num{font-family:'Space Mono',monospace;font-size:.46rem;letter-spacing:.5em;color:var(--dim);margin-bottom:1.2rem}
+.char-name{font-family:'Cinzel Decorative',serif;font-size:clamp(1.6rem,3.5vw,3rem);font-weight:900;color:var(--white);line-height:1;margin-bottom:.6rem;text-shadow:0 0 40px rgba(139,111,255,.2)}
+.char-role{font-family:'Space Mono',monospace;font-size:.48rem;letter-spacing:.35em;text-transform:uppercase;color:var(--accent);margin-bottom:1.6rem}
+.char-lore{font-style:italic;font-size:.98rem;color:var(--mist);line-height:1.8;border-left:2px solid var(--dim);padding-left:1.2rem;margin-bottom:2rem}
+.char-link{align-self:flex-start;font-family:'Space Mono',monospace;font-size:.48rem;letter-spacing:.22em;text-transform:uppercase;color:var(--accent);text-decoration:none;border-bottom:1px solid transparent;padding-bottom:2px;transition:border-color .3s}
+.char-link:hover{border-bottom-color:var(--accent)}
+.car-ctrl{display:flex;align-items:center;justify-content:space-between;margin-top:1.2rem}
+.dots{display:flex;gap:.6rem;align-items:center}
+.dot{width:6px;height:6px;border-radius:50%;background:var(--dim);cursor:pointer;border:none;padding:0;transition:background .3s,transform .3s}
+.dot.on{background:var(--accent);transform:scale(1.6)}
+.arrows{display:flex;gap:.7rem}
+.arr{width:42px;height:42px;border:1px solid var(--border);background:none;color:var(--mist);cursor:pointer;font-size:1rem;display:flex;align-items:center;justify-content:center;transition:all .25s}
+.arr:hover{border-color:var(--accent);color:var(--accent);background:rgba(139,111,255,.07)}
+.exp-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:var(--border);margin-top:3rem;border:1px solid var(--border)}
+.exp-card{background:rgba(3,2,10,.95);padding:2.5rem 2rem;text-decoration:none;display:block;position:relative;overflow:hidden;transition:background .3s}
+.exp-card::after{content:'';position:absolute;bottom:0;left:0;right:0;height:2px;background:var(--accent);transform:scaleX(0);transform-origin:left;transition:transform .4s}
+.exp-card:hover{background:rgba(139,111,255,.06)}.exp-card:hover::after{transform:scaleX(1)}
+.exp-icon{font-size:1.6rem;margin-bottom:1rem;display:block}
+.exp-ttl{font-family:'Cinzel',serif;font-size:1.05rem;color:var(--white);margin-bottom:.4rem}
+.exp-sub{font-family:'Space Mono',monospace;font-size:.44rem;letter-spacing:.2em;text-transform:uppercase;color:var(--accent)}
+footer{border-top:1px solid var(--border);position:relative;padding-bottom:60px}
+footer::before{content:'';position:absolute;top:-1px;left:50%;transform:translateX(-50%);width:100px;height:1px;background:linear-gradient(90deg,transparent,var(--accent),transparent)}
+.foot-top{display:grid;grid-template-columns:2fr 1fr 1fr;gap:4rem;padding:4.5rem 4rem;max-width:1200px;margin:0 auto}
+.foot-logo{font-family:'Cinzel Decorative',serif;font-size:1.3rem;color:var(--white);text-shadow:0 0 30px rgba(139,111,255,.4);display:block;margin-bottom:.8rem}
+.foot-brand-txt{font-style:italic;font-size:.92rem;color:var(--mist);line-height:1.7;max-width:260px}
+.foot-col h4{font-family:'Space Mono',monospace;font-size:.46rem;letter-spacing:.32em;text-transform:uppercase;color:var(--accent);margin-bottom:1rem;padding-bottom:.5rem;border-bottom:1px solid var(--border)}
+.foot-col a{display:block;font-family:'Cinzel',serif;font-size:.92rem;color:var(--mist);text-decoration:none;margin-bottom:.45rem;transition:color .2s}
+.foot-col a:hover{color:var(--white)}
+.sub-head{font-family:'Space Mono',monospace;font-size:.44rem;letter-spacing:.28em;text-transform:uppercase;color:var(--accent);margin-top:1.4rem;margin-bottom:.7rem;padding-bottom:.4rem;border-bottom:1px solid var(--border)}
+.foot-bottom{border-top:1px solid var(--border);padding:1.4rem 4rem;display:flex;align-items:center;justify-content:space-between;max-width:1200px;margin:0 auto}
+.foot-copy{font-family:'Space Mono',monospace;font-size:.44rem;letter-spacing:.14em;color:var(--dim)}
+.foot-qt{font-style:italic;font-size:.82rem;color:var(--dim)}
+.admin-fab{position:fixed;bottom:5rem;right:1.5rem;z-index:9000;background:var(--accent);color:#fff;border:none;cursor:pointer;width:44px;height:44px;border-radius:50%;font-size:1rem;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 20px rgba(139,111,255,.5);text-decoration:none;opacity:0;pointer-events:none;transition:opacity .3s,transform .2s}
+.admin-fab.visible{opacity:1;pointer-events:all}.admin-fab:hover{transform:scale(1.1)}
+.r{opacity:0;transform:translateY(20px);transition:opacity .7s,transform .7s}
+.r.v{opacity:1;transform:translateY(0)}
+.r.d1{transition-delay:.1s}.r.d2{transition-delay:.2s}.r.d3{transition-delay:.3s}
+@media(max-width:1024px){
+  nav{padding:0 1.5rem}.nav-center{display:none}.hamburger{display:flex}
+  .wrap,.car-wrap,.foot-top{padding-left:1.5rem;padding-right:1.5rem}
+  .foot-bottom{padding-left:1.5rem;padding-right:1.5rem}
+  .split{grid-template-columns:1fr}.split-img{min-height:280px}
+  .split-c{border-left:none;border-top:1px solid var(--border)}.split-c::before{display:none}
+  .ech-grid{grid-template-columns:1fr;gap:2.5rem}
+  .char-slide.active{grid-template-columns:1fr}.char-img{aspect-ratio:16/9}.char-img::after{display:none}.char-info{padding:2rem}
+  .exp-grid{grid-template-columns:1fr 1fr}
+  .foot-top{grid-template-columns:1fr 1fr;gap:2rem;padding-top:3rem;padding-bottom:3rem}.foot-brand{grid-column:1/-1}
+  .dashboard-strip{padding:.8rem 1.5rem;flex-wrap:wrap;gap:.5rem}
+}
+@media(max-width:640px){
+  .exp-grid{grid-template-columns:1fr}.stats{grid-template-columns:1fr 1fr}
+  .foot-top{grid-template-columns:1fr}.foot-brand{grid-column:auto}
+  .foot-bottom{flex-direction:column;gap:.5rem;text-align:center;padding:1.2rem 1.5rem}
+  .sec,.sec-dark,.car-sec{padding:4rem 0}.hero-content{transform:translateY(-5%)}
+  .dash-links{flex-wrap:wrap}
+  body{cursor:auto}#cur,#curR{display:none}
+}
+</style>
+</head>
+<body>
+<div id="cur"></div><div id="curR"></div>
+
+<div class="modal-overlay hidden" id="loginModal">
+  <div class="modal-box">
+    <button class="modal-close" onclick="closeLogin()">✕</button>
+    <div class="modal-title">Enter the Void</div>
+    <div class="modal-sub">Shadow ID · Passphrase</div>
+    <label class="modal-label">Shadow ID</label>
+    <input class="modal-input" id="login-id" placeholder="SS0001" maxlength="10" onkeydown="if(event.key==='Enter')submitLogin()"/>
+    <label class="modal-label">Passphrase</label>
+    <input class="modal-input" id="login-pw" type="password" placeholder="••••••••" onkeydown="if(event.key==='Enter')submitLogin()"/>
+    <div class="modal-err" id="login-err">▲ INVALID CREDENTIALS · ACCESS DENIED</div>
+    <button class="modal-btn" id="login-btn" onclick="submitLogin()">◉ IDENTIFY · ENTER SHADOWVERSE</button>
+  </div>
+</div>
+
+<nav>
+  <a class="logo" data-key="nav_logo" data-link="link_nav_home" href="index.html">Shadowseekers</a>
+  <ul class="nav-center">
+    <li><a data-key="nav_home" data-link="link_nav_home" href="#">Home</a></li>
+    <li><span data-key="nav_chars">Characters</span>
+      <div class="drop-menu">
+        <a data-key="nav_char1" data-link="link_char1" href="#">Draven</a>
+        <a data-key="nav_char2" data-link="link_char2" href="#">Nyx</a>
+        <a data-key="nav_char3" data-link="link_char3" href="#">Astra</a>
+        <a data-key="nav_char4" data-link="link_char4" href="#">Kairo</a>
+        <a data-key="nav_char5" data-link="link_char5" href="#">Lyra</a>
+      </div>
+    </li>
+    <li><span data-key="nav_competitive">Competitive Exams</span>
+      <div class="drop-menu">
+        <a data-key="nav_comp1" data-link="link_comp1" href="#">Shadow Quiz</a>
+        <a data-key="nav_comp2" data-link="link_comp2" href="#">Shade</a>
+      </div>
+    </li>
+    <li><span data-key="nav_academics">Academics</span>
+      <div class="drop-menu">
+        <a data-key="nav_acad1" data-link="link_acad1" href="#">Shade</a>
+        <a data-key="nav_acad2" data-link="link_acad2" href="#">Codex</a>
+      </div>
+    </li>
+  </ul>
+  <div class="nav-right">
+    <div id="nav-user-state"></div>
+    <button class="hamburger" id="ham"><span></span><span></span><span></span></button>
+  </div>
+</nav>
+
+<div class="mob-menu" id="mobMenu">
+  <a data-key="nav_home" data-link="link_nav_home" href="#">Home</a>
+  <span class="mob-grp">Characters</span>
+  <a class="mob-sub" data-key="nav_char1" data-link="link_char1" href="#">Draven</a>
+  <a class="mob-sub" data-key="nav_char2" data-link="link_char2" href="#">Nyx</a>
+  <a class="mob-sub" data-key="nav_char3" data-link="link_char3" href="#">Astra</a>
+  <a class="mob-sub" data-key="nav_char4" data-link="link_char4" href="#">Kairo</a>
+  <a class="mob-sub" data-key="nav_char5" data-link="link_char5" href="#">Lyra</a>
+  <span class="mob-grp">Competitive</span>
+  <a class="mob-sub" data-key="nav_comp1" data-link="link_comp1" href="#">Shadow Quiz</a>
+  <a class="mob-sub" data-key="nav_comp2" data-link="link_comp2" href="#">Shade</a>
+  <span class="mob-grp">Academics</span>
+  <a class="mob-sub" data-key="nav_acad1" data-link="link_acad1" href="#">Shade</a>
+  <a class="mob-sub" data-key="nav_acad2" data-link="link_acad2" href="#">Codex</a>
+</div>
+
+<section class="hero">
+  <div class="hero-bg"></div>
+  <div class="hero-overlay"></div>
+  <div class="hero-content">
+    <img class="hero-logo-img" src="images/img_1.png" alt="Shadowseekers"/>
+    <p class="hero-tagline" data-key="hero_tagline">the noise stops here · not everyone belongs here</p>
+    <div class="hero-cta" id="hero-cta">
+      <button class="hero-btn hero-btn-primary" onclick="openLogin()">◉ Enter Shadowverse</button>
+      <a class="hero-btn hero-btn-secondary" data-link="link_shade" href="#">◈ Open Shade</a>
+    </div>
+  </div>
+  <div class="hero-scroll"><span>Scroll</span><div class="scroll-line"></div></div>
+</section>
+<hr class="div">
+
+<section class="sec"><div class="wrap">
+  <div class="r"><p class="tag" data-key="drills_tag">Training</p><h2 class="ttl" data-key="drills_title">Shadow Speed Drills</h2></div>
+  <div class="split r d1">
+    <div class="split-img"><img src="images/img_2.jpeg" alt="Drills"/></div>
+    <div class="split-c">
+      <p class="bq" data-key="drills_quote">"Train in the shadows until you move like one"</p>
+      <p class="bq-attr" data-key="drills_attr">— Nyx</p>
+      <p class="body-t" data-key="drills_body">Push your reaction time, focus, and precision beyond all limits.</p>
+    </div>
+  </div>
+</div></section>
+<hr class="div">
+
+<section class="sec-dark"><div class="wrap">
+  <div class="r"><p class="tag" data-key="quiz_tag">Competitive Exams</p><h2 class="ttl" data-key="quiz_title">Daily Shadow Quiz</h2><p class="sub" data-key="quiz_sub">Measure your focus, accuracy, and consistency—daily.</p></div>
+  <div class="split r d1">
+    <div class="split-c" style="border-left:none;border-right:1px solid var(--border)">
+      <p class="tag" style="margin-top:0">NDA · CDS · AFCAT</p>
+      <div class="stats">
+        <div class="stat"><span class="stat-n" data-key="quiz_stat1_n">Daily</span><span class="stat-l" data-key="quiz_stat1_l">Questions</span></div>
+        <div class="stat"><span class="stat-n" data-key="quiz_stat2_n">Track</span><span class="stat-l" data-key="quiz_stat2_l">Your Streak</span></div>
+        <div class="stat"><span class="stat-n" data-key="quiz_stat3_n">Rank</span><span class="stat-l" data-key="quiz_stat3_l">Seekers Board</span></div>
+        <div class="stat"><span class="stat-n" data-key="quiz_stat4_n">Win</span><span class="stat-l" data-key="quiz_stat4_l">Echoes</span></div>
+      </div>
+      <a class="btn btn-a" data-link="link_quiz_btn" data-key="quiz_btn" href="#">Take the Quiz →</a>
+    </div>
+    <div class="split-img"><img src="images/img_3.jpeg" alt="Quiz"/></div>
+  </div>
+</div></section>
+<hr class="div">
+
+<section class="sec"><div class="wrap">
+  <div class="ech-grid">
+    <div class="ech-img r"><img src="images/img_4.jpeg" alt="Echoes"/></div>
+    <div class="r d1">
+      <p class="tag" data-key="echoes_tag">The Economy</p>
+      <h2 class="ech-ttl" data-key="echoes_title">ECHOES: The Shadow Economy</h2>
+      <p class="sub" data-key="echoes_sub">Complete your to-do list. Earn Echoes.</p>
+      <div class="ech-list">
+        <div class="ech-item"><span class="ech-dot"></span><p data-key="echoes_step1">Complete daily tasks → earn Echoes</p></div>
+        <div class="ech-item"><span class="ech-dot"></span><p data-key="echoes_step2">Finish Shadow Quiz → bonus multiplier</p></div>
+        <div class="ech-item"><span class="ech-dot"></span><p data-key="echoes_step3">Speed drills streak → rare rewards</p></div>
+        <div class="ech-item"><span class="ech-dot"></span><p data-key="echoes_step4">Redeem Echoes → unlock exclusives</p></div>
+      </div>
+      <a class="btn btn-g" data-link="link_echoes_btn" data-key="echoes_btn" href="#">Unlock Real Rewards →</a>
+    </div>
+  </div>
+</div></section>
+<hr class="div">
+
+<section class="car-sec"><div class="car-wrap">
+  <div class="r"><p class="tag" data-key="chars_tag">The Seekers</p><h2 class="ttl" data-key="chars_title">Every Shadowseeker carries a story.</h2></div>
+  <div class="car-stage r d1">
+    <div class="char-slide active"><div class="char-img"><img src="images/img_5.png" alt="Draven"/></div><div class="char-info"><p class="char-num">01 / 05</p><h3 class="char-name" data-key="char1_name">Draven</h3><p class="char-role" data-key="char1_role">The Seeker</p><p class="char-lore" data-key="char1_lore">Born from the edge of the map, Draven walks where light refuses to follow.</p><a class="char-link" data-link="link_char1" data-key="char1_btn" href="#">Explore Draven →</a></div></div>
+    <div class="char-slide"><div class="char-img"><img src="images/img_6.png" alt="Nyx"/></div><div class="char-info"><p class="char-num">02 / 05</p><h3 class="char-name" data-key="char2_name">Nyx</h3><p class="char-role" data-key="char2_role">The Shadow</p><p class="char-lore" data-key="char2_lore">Speed is his language. The dark is his home.</p><a class="char-link" data-link="link_char2" data-key="char2_btn" href="#">Explore Nyx →</a></div></div>
+    <div class="char-slide"><div class="char-img"><img src="images/img_7.png" alt="Astra"/></div><div class="char-info"><p class="char-num">03 / 05</p><h3 class="char-name" data-key="char3_name">Astra</h3><p class="char-role" data-key="char3_role">The Strategist</p><p class="char-lore" data-key="char3_lore">Where others see chaos, Astra sees patterns.</p><a class="char-link" data-link="link_char3" data-key="char3_btn" href="#">Explore Astra →</a></div></div>
+    <div class="char-slide"><div class="char-img"><img src="images/img_8.png" alt="Kairo"/></div><div class="char-info"><p class="char-num">04 / 05</p><h3 class="char-name" data-key="char4_name">Kairo</h3><p class="char-role" data-key="char4_role">The Phantom</p><p class="char-lore" data-key="char4_lore">Kairo leaves no trace, no echo, no shadow.</p><a class="char-link" data-link="link_char4" data-key="char4_btn" href="#">Explore Kairo →</a></div></div>
+    <div class="char-slide"><div class="char-img"><img src="images/img_9.png" alt="Lyra"/></div><div class="char-info"><p class="char-num">05 / 05</p><h3 class="char-name" data-key="char5_name">Lyra</h3><p class="char-role" data-key="char5_role">The Oracle</p><p class="char-lore" data-key="char5_lore">Lyra hears what the shadows whisper.</p><a class="char-link" data-link="link_char5" data-key="char5_btn" href="#">Explore Lyra →</a></div></div>
+  </div>
+  <div class="car-ctrl r d2">
+    <div class="dots"><button class="dot on" data-dot="0"></button><button class="dot" data-dot="1"></button><button class="dot" data-dot="2"></button><button class="dot" data-dot="3"></button><button class="dot" data-dot="4"></button></div>
+    <div class="arrows"><button class="arr" id="prev">&#8592;</button><button class="arr" id="next">&#8594;</button></div>
+  </div>
+</div></section>
+<hr class="div">
+
+<section class="sec"><div class="wrap">
+  <div class="r"><p class="tag" data-key="explore_tag">Explore</p><h2 class="ttl" data-key="explore_title">Where will you go next?</h2></div>
+  <div class="exp-grid">
+    <a class="exp-card r" data-link="link_explore1" href="#"><span class="exp-icon">🎯</span><h3 class="exp-ttl" data-key="explore1_title">Shadow Quiz</h3><p class="exp-sub" data-key="explore1_sub">Competitive Exams</p></a>
+    <a class="exp-card r d1" data-link="link_explore2" href="#"><span class="exp-icon">🌑</span><h3 class="exp-ttl" data-key="explore2_title">Shade</h3><p class="exp-sub" data-key="explore2_sub">Academics</p></a>
+    <a class="exp-card r d2" data-link="link_explore3" href="#"><span class="exp-icon">📖</span><h3 class="exp-ttl" data-key="explore3_title">Codex</h3><p class="exp-sub" data-key="explore3_sub">Archives</p></a>
+  </div>
+</div></section>
+
+<footer>
+  <div class="foot-top">
+    <div class="foot-brand">
+      <span class="foot-logo" data-key="footer_logo">Shadowseekers</span>
+      <p class="foot-brand-txt" data-key="footer_brand">A world where only the sharpest minds survive the dark.</p>
+    </div>
+    <div class="foot-col">
+      <h4 data-key="footer_col1_head">Characters</h4>
+      <a data-link="link_char1" data-key="nav_char1" href="#">Draven</a>
+      <a data-link="link_char2" data-key="nav_char2" href="#">Nyx</a>
+      <a data-link="link_char3" data-key="nav_char3" href="#">Astra</a>
+      <a data-link="link_char4" data-key="nav_char4" href="#">Kairo</a>
+      <a data-link="link_char5" data-key="nav_char5" href="#">Lyra</a>
+    </div>
+    <div class="foot-col">
+      <h4 data-key="footer_col2_head">Shade</h4>
+      <a data-link="link_shade" href="#">Shade</a>
+      <p class="sub-head" data-key="footer_col3_head1">Competitive</p>
+      <a data-link="link_comp1" data-key="nav_comp1" href="#">Shadow Quiz</a>
+      <a data-link="link_comp2" data-key="nav_comp2" href="#">Shade</a>
+      <p class="sub-head" data-key="footer_col3_head2">Academics</p>
+      <a data-link="link_acad1" data-key="nav_acad1" href="#">Shade</a>
+      <a data-link="link_acad2" data-key="nav_acad2" href="#">Codex</a>
+    </div>
+  </div>
+  <div class="foot-bottom">
+    <span class="foot-copy" data-key="footer_copy">© 2026 Shadowseekers · All rights reserved</span>
+    <p class="foot-qt" data-key="footer_quote">Not everyone belongs here.</p>
+  </div>
+</footer>
+
+<div class="dashboard-strip" id="dashStrip">
+  <div class="dash-user">
+    <div class="dash-dot"></div>
+    <div><div class="dash-id" id="dash-id">SS0000</div><div class="dash-name" id="dash-name">Operative</div></div>
+  </div>
+  <div class="dash-links">
+    <a class="dash-link accent" data-link="link_shade" href="#">◈ Shade</a>
+    <a class="dash-link gold" data-link="link_shadowrecords" href="#">◉ Shadow Records</a>
+    <button class="dash-link dim" onclick="logout()">[ Sign Out ]</button>
+  </div>
+</div>
+
+<a href="admin.html" class="admin-fab" id="adminFab">⚙</a>
+
+<script>
+
+const SR_GAS = "https://script.google.com/macros/s/AKfycbyTadW-WF4vnpaciFv8Qv58ahWSQ7KVmQfxJA75_z5fZN3UEBunnDPAeq_i5jiu35sYjQ/exec";
+const DC = {"nav_logo": "Shadowseekers", "nav_home": "Home", "nav_chars": "Characters", "nav_competitive": "Competitive Exams", "nav_academics": "Academics", "nav_char1": "Draven", "nav_char2": "Nyx", "nav_char3": "Astra", "nav_char4": "Kairo", "nav_char5": "Lyra", "nav_comp1": "Shadow Quiz", "nav_comp2": "Shade", "nav_acad1": "Shade", "nav_acad2": "Codex", "hero_tagline": "the noise stops here \u00b7 not everyone belongs here", "drills_tag": "Training", "drills_title": "Shadow Speed Drills", "drills_quote": "Train in the shadows until you move like one", "drills_attr": "\u2014 Nyx", "drills_body": "Push your reaction time, focus, and precision beyond all limits. Every drill is a step deeper into the dark. The shadows remember those who show up.", "quiz_tag": "Competitive Exams", "quiz_title": "Daily Shadow Quiz", "quiz_sub": "Measure your focus, accuracy, and consistency\u2014daily.", "quiz_stat1_n": "Daily", "quiz_stat1_l": "Questions", "quiz_stat2_n": "Track", "quiz_stat2_l": "Your Streak", "quiz_stat3_n": "Rank", "quiz_stat3_l": "Seekers Board", "quiz_stat4_n": "Win", "quiz_stat4_l": "Echoes", "quiz_btn": "Take the Quiz \u2192", "echoes_tag": "The Economy", "echoes_title": "ECHOES: The Shadow Economy", "echoes_sub": "Complete your to-do list. Earn Echoes. Use them to unlock real rewards.", "echoes_step1": "Complete daily tasks \u2192 earn Echoes", "echoes_step2": "Finish Shadow Quiz \u2192 bonus multiplier", "echoes_step3": "Speed drills streak \u2192 rare rewards", "echoes_step4": "Redeem Echoes \u2192 unlock exclusives", "echoes_btn": "Unlock Real Rewards \u2192", "chars_tag": "The Seekers", "chars_title": "Every Shadowseeker carries a story.", "char1_name": "Draven", "char1_role": "The Seeker", "char1_lore": "Born from the edge of the map, Draven walks where light refuses to follow. His resolve is the only compass needed in the dark.", "char1_btn": "Explore Draven \u2192", "char2_name": "Nyx", "char2_role": "The Shadow", "char2_lore": "Train in the shadows until you move like one. Speed is his language. The dark is his home.", "char2_btn": "Explore Nyx \u2192", "char3_name": "Astra", "char3_role": "The Strategist", "char3_lore": "Where others see chaos, Astra sees patterns. She moves three steps ahead with surgical precision.", "char3_btn": "Explore Astra \u2192", "char4_name": "Kairo", "char4_role": "The Phantom", "char4_lore": "Kairo leaves no trace, no echo, no shadow. The most dangerous Shadowseeker is the one you never see coming.", "char4_btn": "Explore Kairo \u2192", "char5_name": "Lyra", "char5_role": "The Oracle", "char5_lore": "Lyra hears what the shadows whisper. Her instincts are forged in the deepest dark.", "char5_btn": "Explore Lyra \u2192", "explore_tag": "Explore", "explore_title": "Where will you go next?", "explore1_title": "Shadow Quiz", "explore1_sub": "Competitive Exams", "explore2_title": "Shade", "explore2_sub": "Academics", "explore3_title": "Codex", "explore3_sub": "Archives", "footer_logo": "Shadowseekers", "footer_brand": "A world where only the sharpest minds survive the dark. Train. Compete. Earn. Become a legend.", "footer_col1_head": "Characters", "footer_col2_head": "Shade", "footer_col3_head1": "Competitive", "footer_col3_head2": "Academics", "footer_copy": "\u00a9 2026 Shadowseekers \u00b7 All rights reserved", "footer_quote": "Not everyone belongs here."};
+const DL = {"link_nav_home": "index.html", "link_char1": "Draven.html", "link_char2": "Nyx.html", "link_char3": "Astra.html", "link_char4": "Kairo.html", "link_char5": "Lyra.html", "link_comp1": "Shadow Quiz.html", "link_comp2": "shadowverse/index.html", "link_acad1": "shadowverse/index.html", "link_acad2": "Codex.html", "link_quiz_btn": "Shadow Quiz.html", "link_echoes_btn": "#", "link_explore1": "Shadow Quiz.html", "link_explore2": "shadowverse/index.html", "link_explore3": "Codex.html", "link_shade": "shadowverse/index.html", "link_shadowrecords": "shadowrecords/index.html"};
+
+// Apply content + links to DOM
+function applyContent(content, links) {
+  document.querySelectorAll('[data-key]').forEach(el => {
+    if (content[el.dataset.key] !== undefined) el.textContent = content[el.dataset.key];
+  });
+  document.querySelectorAll('[data-link]').forEach(el => {
+    if (links[el.dataset.link] !== undefined) el.href = links[el.dataset.link];
+  });
+}
+
+// Load from GAS → cache in localStorage → apply
+async function loadContent() {
+  // Apply defaults immediately (no flash)
+  const lc = {...DC, ...JSON.parse(localStorage.getItem('ss_content') || '{}') };
+  const ll = {...DL, ...JSON.parse(localStorage.getItem('ss_links')   || '{}') };
+  applyContent(lc, ll);
+  // Then fetch fresh from GAS
+  try {
+    const res  = await fetch(SR_GAS + '?action=readHomepage', {redirect:'follow'});
+    const data = await res.json();
+    if (data.ok) {
+      const fresh_c = {...DC, ...data.content};
+      const fresh_l = {...DL, ...data.links};
+      localStorage.setItem('ss_content', JSON.stringify(data.content));
+      localStorage.setItem('ss_links',   JSON.stringify(data.links));
+      applyContent(fresh_c, fresh_l);
+    }
+  } catch(e) { /* use cached */ }
+}
+loadContent();
+
+
+// ── SESSION ───────────────────────────────────────────────────────
+let _members = {};
+let _membersLoaded = false;
+
+function getUser() {
+  try { return JSON.parse(localStorage.getItem('ss_user')); } catch(e) { return null; }
+}
+
+function renderNavUser() {
+  const u = getUser();
+  const el = document.getElementById('nav-user-state');
+  if (u) {
+    el.innerHTML = `<div class="nav-user-badge"><span class="nav-user-dot"></span><span>${u.shadowId}</span></div>
+    <button class="nav-logout-btn" onclick="logout()">[ Out ]</button>`;
+  } else {
+    el.innerHTML = `<button class="nav-login-btn" onclick="openLogin()">◉ Login</button>`;
+  }
+}
+
+function renderDashboard() {
+  const u = getUser();
+  const strip = document.getElementById('dashStrip');
+  if (u) {
+    document.getElementById('dash-id').textContent = u.shadowId;
+    document.getElementById('dash-name').textContent = u.codename || u.shadowId;
+    strip.classList.add('visible');
+    const links = {...DL, ...JSON.parse(localStorage.getItem('ss_links') || '{}') };
+    document.getElementById('hero-cta').innerHTML = `
+      <a class="hero-btn hero-btn-primary" href="${links.link_shade || '#'}">◈ Open Shade</a>
+      <a class="hero-btn hero-btn-secondary" href="${links.link_shadowrecords || '#'}">◉ Shadow Records</a>`;
+  } else {
+    strip.classList.remove('visible');
+    document.getElementById('hero-cta').innerHTML = `
+      <button class="hero-btn hero-btn-primary" onclick="openLogin()">◉ Enter Shadowverse</button>
+      <a class="hero-btn hero-btn-secondary" data-link="link_shade" href="#">◈ Open Shade</a>`;
+    loadContent();
+  }
+  renderNavUser();
+}
+
+// ── LOGIN ─────────────────────────────────────────────────────────
+function openLogin() {
+  document.getElementById('login-id').value = '';
+  document.getElementById('login-pw').value = '';
+  document.getElementById('login-err').style.display = 'none';
+  ['login-id','login-pw'].forEach(id => document.getElementById(id).classList.remove('err'));
+  document.getElementById('loginModal').classList.remove('hidden');
+  setTimeout(() => document.getElementById('login-id').focus(), 50);
+}
+function closeLogin() { document.getElementById('loginModal').classList.add('hidden'); }
+
+async function submitLogin() {
+  const id  = (document.getElementById('login-id').value || '').trim().toUpperCase();
+  const pw  = document.getElementById('login-pw').value;
+  const btn = document.getElementById('login-btn');
+  const err = document.getElementById('login-err');
+
+  ['login-id','login-pw'].forEach(i => document.getElementById(i).classList.remove('err'));
+  err.style.display = 'none';
+  if (!id || !pw) { err.textContent = '▲ ENTER SHADOW ID AND PASSPHRASE'; err.style.display = 'block'; return; }
+
+  btn.textContent = '◉ AUTHENTICATING...';
+  btn.classList.add('loading');
+
+  if (!_membersLoaded) {
+    try {
+      const res  = await fetch(SR_GAS + '?action=read', {redirect:'follow'});
+      const data = await res.json();
+      if (Array.isArray(data)) {
+        data.forEach(m => { if (m.shadowId && m.passphrase) _members[m.shadowId] = m; });
+        _membersLoaded = true;
+      }
+    } catch(e) {
+      err.textContent = '▲ CONNECTION FAILED · TRY AGAIN';
+      err.style.display = 'block';
+      btn.textContent = '◉ IDENTIFY · ENTER SHADOWVERSE';
+      btn.classList.remove('loading');
+      return;
+    }
+  }
+
+  const member = _members[id];
+  if (member && member.passphrase === pw) {
+    const user = {shadowId: id, codename: member.codename || id, passphrase: pw};
+    localStorage.setItem('ss_user',    JSON.stringify(user));
+    localStorage.setItem('shade_user', JSON.stringify({shadowId: id, codename: user.codename}));
+    closeLogin();
+    renderDashboard();
+  } else {
+    err.textContent = '▲ INVALID CREDENTIALS · ACCESS DENIED';
+    err.style.display = 'block';
+    ['login-id','login-pw'].forEach(i => document.getElementById(i).classList.add('err'));
+  }
+  btn.textContent = '◉ IDENTIFY · ENTER SHADOWVERSE';
+  btn.classList.remove('loading');
+}
+
+function logout() {
+  localStorage.removeItem('ss_user');
+  localStorage.removeItem('shade_user');
+  renderDashboard();
+}
+
+document.getElementById('loginModal').addEventListener('click', function(e) {
+  if (e.target === this) closeLogin();
+});
+
+// ── ADMIN FAB — long press bottom-right corner ────────────────────
+let _pressTimer = null;
+function _startPress() { _pressTimer = setTimeout(() => document.getElementById('adminFab').classList.add('visible'), 1500); }
+function _endPress()   { clearTimeout(_pressTimer); }
+document.addEventListener('mousedown',   e => { if (e.clientX > window.innerWidth-80 && e.clientY > window.innerHeight-80) _startPress(); });
+document.addEventListener('mouseup',     _endPress);
+document.addEventListener('touchstart',  e => { const t=e.touches[0]; if(t.clientX>window.innerWidth-80&&t.clientY>window.innerHeight-80) _startPress(); }, {passive:true});
+document.addEventListener('touchend',    _endPress);
+document.getElementById('adminFab').addEventListener('click', () => { setTimeout(() => document.getElementById('adminFab').classList.remove('visible'), 5000); });
+
+// ── CURSOR ────────────────────────────────────────────────────────
+const cur=document.getElementById('cur'),curR=document.getElementById('curR');
+let mx=0,my=0,rx=0,ry=0;
+document.addEventListener('mousemove',e=>{mx=e.clientX;my=e.clientY;cur.style.left=mx+'px';cur.style.top=my+'px'});
+(function loop(){rx+=(mx-rx)*.1;ry+=(my-ry)*.1;curR.style.left=rx+'px';curR.style.top=ry+'px';requestAnimationFrame(loop)})();
+document.querySelectorAll('a,button,li>span').forEach(el=>{el.addEventListener('mouseenter',()=>document.body.classList.add('hov'));el.addEventListener('mouseleave',()=>document.body.classList.remove('hov'))});
+
+// ── HAMBURGER ─────────────────────────────────────────────────────
+document.getElementById('ham').addEventListener('click', () => document.getElementById('mobMenu').classList.toggle('open'));
+
+// ── CAROUSEL ──────────────────────────────────────────────────────
+const slides=document.querySelectorAll('.char-slide'),dots=document.querySelectorAll('.dot');
+let ci=0;
+function goTo(i){slides[ci].classList.remove('active');dots[ci].classList.remove('on');ci=(i+slides.length)%slides.length;slides[ci].classList.add('active');dots[ci].classList.add('on')}
+document.getElementById('next').addEventListener('click',()=>goTo(ci+1));
+document.getElementById('prev').addEventListener('click',()=>goTo(ci-1));
+dots.forEach(d=>d.addEventListener('click',()=>goTo(+d.dataset.dot)));
+setInterval(()=>goTo(ci+1),6000);
+document.addEventListener('keydown',e=>{if(e.key==='ArrowRight')goTo(ci+1);if(e.key==='ArrowLeft')goTo(ci-1)});
+let tx=0;
+document.querySelector('.car-stage').addEventListener('touchstart',e=>{tx=e.touches[0].clientX},{passive:true});
+document.querySelector('.car-stage').addEventListener('touchend',e=>{const dx=e.changedTouches[0].clientX-tx;if(Math.abs(dx)>50)dx<0?goTo(ci+1):goTo(ci-1)});
+
+// ── REVEAL ────────────────────────────────────────────────────────
+const _obs=new IntersectionObserver(en=>en.forEach(e=>{if(e.isIntersecting)e.target.classList.add('v')}),{threshold:.08});
+document.querySelectorAll('.r').forEach(el=>_obs.observe(el));
+
+// ── INIT ──────────────────────────────────────────────────────────
+renderDashboard();
+</script>
+</body>
+</html>
