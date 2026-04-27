@@ -1,0 +1,395 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Shadowseekers Admin</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Cinzel+Decorative:wght@700&display=swap" rel="stylesheet"/>
+<style>
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
+:root{--bg:#06060e;--card:#0d0c1a;--border:#1e1b30;--accent:#8b6fff;--gold:#d4a843;--white:#f0ecff;--mist:#8880aa;--dim:#3a3560;--green:#10b981;--red:#e05c5c}
+body{background:var(--bg);color:var(--white);font-family:'Space Mono',monospace;min-height:100vh}
+.auth-screen{position:fixed;inset:0;background:var(--bg);z-index:9999;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:1.5rem}
+.auth-screen.gone{display:none}
+.auth-logo{font-family:'Cinzel Decorative',serif;font-size:1.2rem;letter-spacing:.2em;color:var(--white);text-shadow:0 0 20px rgba(139,111,255,.5)}
+.auth-sub{font-size:.5rem;letter-spacing:.35em;text-transform:uppercase;color:var(--mist)}
+.auth-input{background:var(--card);border:1px solid var(--border);color:var(--white);font-family:'Space Mono',monospace;font-size:.65rem;padding:.75rem 1rem;outline:none;width:280px;transition:border-color .2s;text-align:center;letter-spacing:.2em}
+.auth-input:focus{border-color:var(--accent)}.auth-input.err{border-color:var(--red)}
+.auth-btn{background:none;border:1px solid var(--accent);color:var(--accent);font-family:'Space Mono',monospace;font-size:.55rem;letter-spacing:.25em;text-transform:uppercase;padding:.75rem 2rem;cursor:pointer;transition:all .3s;width:280px}
+.auth-btn:hover{background:var(--accent);color:#fff}
+.auth-err{font-size:.46rem;letter-spacing:.15em;color:var(--red);display:none}
+.topbar{background:rgba(8,7,20,.97);border-bottom:1px solid var(--border);padding:0 2rem;height:58px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100}
+.topbar-logo{font-family:'Cinzel Decorative',serif;font-size:.8rem;letter-spacing:.2em;color:var(--white);text-decoration:none;text-shadow:0 0 16px rgba(139,111,255,.5)}
+.topbar-right{display:flex;align-items:center;gap:.7rem}
+.sync-status{font-size:.42rem;letter-spacing:.15em;text-transform:uppercase;color:var(--dim);padding:.3rem .7rem;border:1px solid var(--dim)}
+.sync-status.synced{color:var(--green);border-color:var(--green)}
+.sync-status.saving{color:var(--gold);border-color:var(--gold)}
+.sync-status.error{color:var(--red);border-color:var(--red)}
+.tb-btn{padding:.45rem 1.1rem;border:1px solid;font-family:'Space Mono',monospace;font-size:.5rem;letter-spacing:.15em;text-transform:uppercase;cursor:pointer;transition:all .2s;background:none}
+.save-btn{color:var(--green);border-color:var(--green)}.save-btn:hover{background:var(--green);color:#000}
+.reset-btn{color:var(--red);border-color:var(--red)}.reset-btn:hover{background:var(--red);color:#fff}
+.preview-btn{color:var(--accent);border-color:var(--accent)}.preview-btn:hover{background:var(--accent);color:#fff}
+.admin-body{display:grid;grid-template-columns:190px 1fr;min-height:calc(100vh - 58px)}
+.sidebar{background:rgba(8,7,20,.8);border-right:1px solid var(--border);padding:1.2rem 0;position:sticky;top:58px;height:calc(100vh - 58px);overflow-y:auto}
+.sidebar-item{display:block;padding:.6rem 1.4rem;font-size:.5rem;letter-spacing:.16em;text-transform:uppercase;color:var(--mist);cursor:pointer;border:none;background:none;width:100%;text-align:left;border-left:2px solid transparent;transition:all .2s}
+.sidebar-item:hover{color:var(--white);background:rgba(139,111,255,.07)}
+.sidebar-item.active{color:var(--accent);border-left-color:var(--accent);background:rgba(139,111,255,.1)}
+.sidebar-lbl{padding:.7rem 1.4rem .2rem;font-size:.4rem;letter-spacing:.3em;text-transform:uppercase;color:var(--dim)}
+.main{padding:2rem;overflow-y:auto}
+.panel{display:none}.panel.active{display:block}
+.panel-title{font-family:'Cinzel Decorative',serif;font-size:.95rem;color:var(--white);margin-bottom:.2rem}
+.panel-sub{font-size:.46rem;letter-spacing:.12em;color:var(--mist);margin-bottom:1.8rem}
+.sec-box{background:var(--card);border:1px solid var(--border);padding:1.4rem;margin-bottom:1.2rem}
+.sec-box h3{font-size:.55rem;letter-spacing:.22em;text-transform:uppercase;color:var(--gold);margin-bottom:1rem;padding-bottom:.5rem;border-bottom:1px solid var(--border)}
+.field-grid{display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1rem}
+.field{display:flex;flex-direction:column;gap:.35rem}.field.full{grid-column:1/-1}
+.field label{font-size:.44rem;letter-spacing:.2em;text-transform:uppercase;color:var(--accent)}
+.field input,.field textarea{background:var(--bg);border:1px solid var(--border);color:var(--white);font-family:'Space Mono',monospace;font-size:.56rem;padding:.55rem .75rem;outline:none;resize:vertical;transition:border-color .2s}
+.field input:focus,.field textarea:focus{border-color:var(--accent)}.field textarea{min-height:72px;line-height:1.6}
+.link-row{display:grid;grid-template-columns:160px 1fr;gap:.75rem;align-items:center;margin-bottom:.75rem}
+.link-lbl{font-size:.44rem;letter-spacing:.14em;text-transform:uppercase;color:var(--mist)}
+.link-input{background:var(--bg);border:1px solid var(--border);color:var(--white);font-family:'Space Mono',monospace;font-size:.52rem;padding:.5rem .7rem;outline:none;transition:border-color .2s;width:100%}
+.link-input:focus{border-color:var(--gold)}
+#toast{position:fixed;bottom:2rem;left:50%;transform:translateX(-50%);background:var(--green);color:#000;padding:.65rem 1.8rem;font-family:'Space Mono',monospace;font-size:.52rem;letter-spacing:.14em;opacity:0;transition:opacity .3s;pointer-events:none;z-index:9999}
+#toast.show{opacity:1}
+@media(max-width:768px){
+  .admin-body{grid-template-columns:1fr}
+  .sidebar{position:static;height:auto;display:flex;flex-wrap:wrap;padding:.5rem;gap:.3rem;border-right:none;border-bottom:1px solid var(--border)}
+  .sidebar-item{width:auto;border-left:none;border-bottom:2px solid transparent;padding:.4rem .8rem;font-size:.44rem}
+  .sidebar-item.active{border-bottom-color:var(--accent);border-left:none}
+  .sidebar-lbl{display:none}.field-grid{grid-template-columns:1fr}.link-row{grid-template-columns:1fr;gap:.3rem}
+  .topbar-right{gap:.4rem}
+}
+</style>
+</head>
+<body>
+
+<div class="auth-screen" id="authScreen">
+  <div class="auth-logo">Shadowseekers</div>
+  <div class="auth-sub">Admin Panel · v1.0</div>
+  <input class="auth-input" id="authInput" type="password" placeholder="passphrase" onkeydown="if(event.key==='Enter')tryAuth()"/>
+  <button class="auth-btn" onclick="tryAuth()">[ ENTER ]</button>
+  <span class="auth-err" id="authErr">▲ ACCESS DENIED</span>
+</div>
+
+<div id="adminContent" style="display:none">
+<div class="topbar">
+  <a href="index.html" class="topbar-logo">Admin · Shadowseekers</a>
+  <div class="topbar-right">
+    <span class="sync-status" id="syncStatus">● NOT SAVED</span>
+    <button class="tb-btn preview-btn" onclick="window.open('index.html','_blank')">&#128065; Preview</button>
+    <button class="tb-btn reset-btn" id="resetBtn">&#8635; Reset</button>
+    <button class="tb-btn save-btn" id="saveBtn">&#10003; Save &amp; Sync</button>
+  </div>
+</div>
+
+<div class="admin-body">
+<nav class="sidebar">
+  <div class="sidebar-lbl">Sections</div>
+  <button class="sidebar-item active" data-panel="hero">&#127775; Hero</button>
+  <button class="sidebar-item" data-panel="nav">&#9776; Navigation</button>
+  <button class="sidebar-item" data-panel="drills">&#9889; Speed Drills</button>
+  <button class="sidebar-item" data-panel="quiz">&#127919; Quiz</button>
+  <button class="sidebar-item" data-panel="echoes">&#128142; Echoes</button>
+  <button class="sidebar-item" data-panel="characters">&#128100; Characters</button>
+  <button class="sidebar-item" data-panel="explore">&#128270; Explore</button>
+  <button class="sidebar-item" data-panel="footer">&#128386; Footer</button>
+  <div class="sidebar-lbl">Settings</div>
+  <button class="sidebar-item" data-panel="links">&#128279; All Links</button>
+</nav>
+
+<div class="main">
+
+<div class="panel active" id="panel-hero">
+  <div class="panel-title">Hero Section</div><div class="panel-sub">Main banner tagline</div>
+  <div class="sec-box"><h3>Content</h3><div class="field-grid">
+    <div class="field full"><label>Tagline</label><input data-key="hero_tagline"/></div>
+  </div></div>
+</div>
+
+<div class="panel" id="panel-nav">
+  <div class="panel-title">Navigation</div><div class="panel-sub">Navbar labels and dropdown items</div>
+  <div class="sec-box"><h3>Top Level</h3><div class="field-grid">
+    <div class="field"><label>Logo</label><input data-key="nav_logo"/></div>
+    <div class="field"><label>Home Label</label><input data-key="nav_home"/></div>
+    <div class="field"><label>Characters Dropdown</label><input data-key="nav_chars"/></div>
+    <div class="field"><label>Competitive Dropdown</label><input data-key="nav_competitive"/></div>
+    <div class="field"><label>Academics Dropdown</label><input data-key="nav_academics"/></div>
+  </div></div>
+  <div class="sec-box"><h3>Characters Items</h3><div class="field-grid">
+    <div class="field"><label>Item 1</label><input data-key="nav_char1"/></div>
+    <div class="field"><label>Item 2</label><input data-key="nav_char2"/></div>
+    <div class="field"><label>Item 3</label><input data-key="nav_char3"/></div>
+    <div class="field"><label>Item 4</label><input data-key="nav_char4"/></div>
+    <div class="field"><label>Item 5</label><input data-key="nav_char5"/></div>
+  </div></div>
+  <div class="sec-box"><h3>Competitive &amp; Academics</h3><div class="field-grid">
+    <div class="field"><label>Competitive 1</label><input data-key="nav_comp1"/></div>
+    <div class="field"><label>Competitive 2</label><input data-key="nav_comp2"/></div>
+    <div class="field"><label>Academics 1</label><input data-key="nav_acad1"/></div>
+    <div class="field"><label>Academics 2</label><input data-key="nav_acad2"/></div>
+  </div></div>
+</div>
+
+<div class="panel" id="panel-drills">
+  <div class="panel-title">Shadow Speed Drills</div><div class="panel-sub">Training section</div>
+  <div class="sec-box"><h3>Content</h3><div class="field-grid">
+    <div class="field"><label>Tag</label><input data-key="drills_tag"/></div>
+    <div class="field"><label>Title</label><input data-key="drills_title"/></div>
+    <div class="field full"><label>Quote</label><input data-key="drills_quote"/></div>
+    <div class="field"><label>Attribution</label><input data-key="drills_attr"/></div>
+    <div class="field full"><label>Body Text</label><textarea data-key="drills_body"></textarea></div>
+  </div></div>
+</div>
+
+<div class="panel" id="panel-quiz">
+  <div class="panel-title">Daily Shadow Quiz</div><div class="panel-sub">Quiz section and stats</div>
+  <div class="sec-box"><h3>Section</h3><div class="field-grid">
+    <div class="field"><label>Tag</label><input data-key="quiz_tag"/></div>
+    <div class="field"><label>Title</label><input data-key="quiz_title"/></div>
+    <div class="field full"><label>Subtitle</label><input data-key="quiz_sub"/></div>
+    <div class="field"><label>Button Text</label><input data-key="quiz_btn"/></div>
+  </div></div>
+  <div class="sec-box"><h3>Stats Grid</h3><div class="field-grid">
+    <div class="field"><label>Stat 1 Number</label><input data-key="quiz_stat1_n"/></div>
+    <div class="field"><label>Stat 1 Label</label><input data-key="quiz_stat1_l"/></div>
+    <div class="field"><label>Stat 2 Number</label><input data-key="quiz_stat2_n"/></div>
+    <div class="field"><label>Stat 2 Label</label><input data-key="quiz_stat2_l"/></div>
+    <div class="field"><label>Stat 3 Number</label><input data-key="quiz_stat3_n"/></div>
+    <div class="field"><label>Stat 3 Label</label><input data-key="quiz_stat3_l"/></div>
+    <div class="field"><label>Stat 4 Number</label><input data-key="quiz_stat4_n"/></div>
+    <div class="field"><label>Stat 4 Label</label><input data-key="quiz_stat4_l"/></div>
+  </div></div>
+</div>
+
+<div class="panel" id="panel-echoes">
+  <div class="panel-title">Echoes Economy</div><div class="panel-sub">Economy section</div>
+  <div class="sec-box"><h3>Content</h3><div class="field-grid">
+    <div class="field"><label>Tag</label><input data-key="echoes_tag"/></div>
+    <div class="field"><label>Title</label><input data-key="echoes_title"/></div>
+    <div class="field full"><label>Subtitle</label><textarea data-key="echoes_sub"></textarea></div>
+    <div class="field full"><label>Step 1</label><input data-key="echoes_step1"/></div>
+    <div class="field full"><label>Step 2</label><input data-key="echoes_step2"/></div>
+    <div class="field full"><label>Step 3</label><input data-key="echoes_step3"/></div>
+    <div class="field full"><label>Step 4</label><input data-key="echoes_step4"/></div>
+    <div class="field"><label>Button Text</label><input data-key="echoes_btn"/></div>
+  </div></div>
+</div>
+
+<div class="panel" id="panel-characters">
+  <div class="panel-title">Characters</div><div class="panel-sub">Carousel — all 5 characters</div>
+  <div class="sec-box"><h3>Header</h3><div class="field-grid">
+    <div class="field"><label>Tag</label><input data-key="chars_tag"/></div>
+    <div class="field full"><label>Title</label><input data-key="chars_title"/></div>
+  </div></div>
+  <div class="sec-box"><h3>Draven — 01</h3><div class="field-grid">
+    <div class="field"><label>Name</label><input data-key="char1_name"/></div><div class="field"><label>Role</label><input data-key="char1_role"/></div>
+    <div class="field full"><label>Lore</label><textarea data-key="char1_lore"></textarea></div>
+    <div class="field"><label>Button</label><input data-key="char1_btn"/></div>
+  </div></div>
+  <div class="sec-box"><h3>Nyx — 02</h3><div class="field-grid">
+    <div class="field"><label>Name</label><input data-key="char2_name"/></div><div class="field"><label>Role</label><input data-key="char2_role"/></div>
+    <div class="field full"><label>Lore</label><textarea data-key="char2_lore"></textarea></div>
+    <div class="field"><label>Button</label><input data-key="char2_btn"/></div>
+  </div></div>
+  <div class="sec-box"><h3>Astra — 03</h3><div class="field-grid">
+    <div class="field"><label>Name</label><input data-key="char3_name"/></div><div class="field"><label>Role</label><input data-key="char3_role"/></div>
+    <div class="field full"><label>Lore</label><textarea data-key="char3_lore"></textarea></div>
+    <div class="field"><label>Button</label><input data-key="char3_btn"/></div>
+  </div></div>
+  <div class="sec-box"><h3>Kairo — 04</h3><div class="field-grid">
+    <div class="field"><label>Name</label><input data-key="char4_name"/></div><div class="field"><label>Role</label><input data-key="char4_role"/></div>
+    <div class="field full"><label>Lore</label><textarea data-key="char4_lore"></textarea></div>
+    <div class="field"><label>Button</label><input data-key="char4_btn"/></div>
+  </div></div>
+  <div class="sec-box"><h3>Lyra — 05</h3><div class="field-grid">
+    <div class="field"><label>Name</label><input data-key="char5_name"/></div><div class="field"><label>Role</label><input data-key="char5_role"/></div>
+    <div class="field full"><label>Lore</label><textarea data-key="char5_lore"></textarea></div>
+    <div class="field"><label>Button</label><input data-key="char5_btn"/></div>
+  </div></div>
+</div>
+
+<div class="panel" id="panel-explore">
+  <div class="panel-title">Explore Section</div><div class="panel-sub">Quick-link cards</div>
+  <div class="sec-box"><h3>Header</h3><div class="field-grid">
+    <div class="field"><label>Tag</label><input data-key="explore_tag"/></div>
+    <div class="field"><label>Title</label><input data-key="explore_title"/></div>
+  </div></div>
+  <div class="sec-box"><h3>Cards</h3><div class="field-grid">
+    <div class="field"><label>Card 1 Title</label><input data-key="explore1_title"/></div><div class="field"><label>Card 1 Sub</label><input data-key="explore1_sub"/></div>
+    <div class="field"><label>Card 2 Title</label><input data-key="explore2_title"/></div><div class="field"><label>Card 2 Sub</label><input data-key="explore2_sub"/></div>
+    <div class="field"><label>Card 3 Title</label><input data-key="explore3_title"/></div><div class="field"><label>Card 3 Sub</label><input data-key="explore3_sub"/></div>
+  </div></div>
+</div>
+
+<div class="panel" id="panel-footer">
+  <div class="panel-title">Footer</div><div class="panel-sub">Brand, columns, copyright</div>
+  <div class="sec-box"><h3>Brand</h3><div class="field-grid">
+    <div class="field"><label>Logo Text</label><input data-key="footer_logo"/></div>
+    <div class="field full"><label>Description</label><textarea data-key="footer_brand"></textarea></div>
+  </div></div>
+  <div class="sec-box"><h3>Column Headings</h3><div class="field-grid">
+    <div class="field"><label>Col 1</label><input data-key="footer_col1_head"/></div>
+    <div class="field"><label>Col 2</label><input data-key="footer_col2_head"/></div>
+    <div class="field"><label>Col 3 Sub-head 1</label><input data-key="footer_col3_head1"/></div>
+    <div class="field"><label>Col 3 Sub-head 2</label><input data-key="footer_col3_head2"/></div>
+  </div></div>
+  <div class="sec-box"><h3>Bottom Bar</h3><div class="field-grid">
+    <div class="field full"><label>Copyright</label><input data-key="footer_copy"/></div>
+    <div class="field full"><label>Quote</label><input data-key="footer_quote"/></div>
+  </div></div>
+</div>
+
+<div class="panel" id="panel-links">
+  <div class="panel-title">Link Manager</div><div class="panel-sub">Where every button and link points</div>
+  <div class="sec-box"><h3>Core Pages</h3>
+    <div class="link-row"><span class="link-lbl">Home</span><input class="link-input" data-link="link_nav_home"/></div>
+    <div class="link-row"><span class="link-lbl">Shade App</span><input class="link-input" data-link="link_shade"/></div>
+    <div class="link-row"><span class="link-lbl">Shadow Records</span><input class="link-input" data-link="link_shadowrecords"/></div>
+  </div>
+  <div class="sec-box"><h3>Characters</h3>
+    <div class="link-row"><span class="link-lbl">Draven</span><input class="link-input" data-link="link_char1"/></div>
+    <div class="link-row"><span class="link-lbl">Nyx</span><input class="link-input" data-link="link_char2"/></div>
+    <div class="link-row"><span class="link-lbl">Astra</span><input class="link-input" data-link="link_char3"/></div>
+    <div class="link-row"><span class="link-lbl">Kairo</span><input class="link-input" data-link="link_char4"/></div>
+    <div class="link-row"><span class="link-lbl">Lyra</span><input class="link-input" data-link="link_char5"/></div>
+  </div>
+  <div class="sec-box"><h3>Nav Dropdowns</h3>
+    <div class="link-row"><span class="link-lbl">Competitive 1</span><input class="link-input" data-link="link_comp1"/></div>
+    <div class="link-row"><span class="link-lbl">Competitive 2</span><input class="link-input" data-link="link_comp2"/></div>
+    <div class="link-row"><span class="link-lbl">Academics 1</span><input class="link-input" data-link="link_acad1"/></div>
+    <div class="link-row"><span class="link-lbl">Academics 2</span><input class="link-input" data-link="link_acad2"/></div>
+  </div>
+  <div class="sec-box"><h3>Buttons</h3>
+    <div class="link-row"><span class="link-lbl">Quiz Button</span><input class="link-input" data-link="link_quiz_btn"/></div>
+    <div class="link-row"><span class="link-lbl">Echoes Button</span><input class="link-input" data-link="link_echoes_btn"/></div>
+  </div>
+  <div class="sec-box"><h3>Explore Cards</h3>
+    <div class="link-row"><span class="link-lbl">Card 1</span><input class="link-input" data-link="link_explore1"/></div>
+    <div class="link-row"><span class="link-lbl">Card 2</span><input class="link-input" data-link="link_explore2"/></div>
+    <div class="link-row"><span class="link-lbl">Card 3</span><input class="link-input" data-link="link_explore3"/></div>
+  </div>
+</div>
+
+</div></div></div>
+<div id="toast">Saved &amp; Synced!</div>
+
+<script>
+const SR_GAS  = "https://script.google.com/macros/s/AKfycbyTadW-WF4vnpaciFv8Qv58ahWSQ7KVmQfxJA75_z5fZN3UEBunnDPAeq_i5jiu35sYjQ/exec";
+const ADMIN_PASS = "void2024";
+const DC = {"nav_logo": "Shadowseekers", "nav_home": "Home", "nav_chars": "Characters", "nav_competitive": "Competitive Exams", "nav_academics": "Academics", "nav_char1": "Draven", "nav_char2": "Nyx", "nav_char3": "Astra", "nav_char4": "Kairo", "nav_char5": "Lyra", "nav_comp1": "Shadow Quiz", "nav_comp2": "Shade", "nav_acad1": "Shade", "nav_acad2": "Codex", "hero_tagline": "the noise stops here \u00b7 not everyone belongs here", "drills_tag": "Training", "drills_title": "Shadow Speed Drills", "drills_quote": "Train in the shadows until you move like one", "drills_attr": "\u2014 Nyx", "drills_body": "Push your reaction time, focus, and precision beyond all limits. Every drill is a step deeper into the dark. The shadows remember those who show up.", "quiz_tag": "Competitive Exams", "quiz_title": "Daily Shadow Quiz", "quiz_sub": "Measure your focus, accuracy, and consistency\u2014daily.", "quiz_stat1_n": "Daily", "quiz_stat1_l": "Questions", "quiz_stat2_n": "Track", "quiz_stat2_l": "Your Streak", "quiz_stat3_n": "Rank", "quiz_stat3_l": "Seekers Board", "quiz_stat4_n": "Win", "quiz_stat4_l": "Echoes", "quiz_btn": "Take the Quiz \u2192", "echoes_tag": "The Economy", "echoes_title": "ECHOES: The Shadow Economy", "echoes_sub": "Complete your to-do list. Earn Echoes. Use them to unlock real rewards.", "echoes_step1": "Complete daily tasks \u2192 earn Echoes", "echoes_step2": "Finish Shadow Quiz \u2192 bonus multiplier", "echoes_step3": "Speed drills streak \u2192 rare rewards", "echoes_step4": "Redeem Echoes \u2192 unlock exclusives", "echoes_btn": "Unlock Real Rewards \u2192", "chars_tag": "The Seekers", "chars_title": "Every Shadowseeker carries a story.", "char1_name": "Draven", "char1_role": "The Seeker", "char1_lore": "Born from the edge of the map, Draven walks where light refuses to follow. His resolve is the only compass needed in the dark.", "char1_btn": "Explore Draven \u2192", "char2_name": "Nyx", "char2_role": "The Shadow", "char2_lore": "Train in the shadows until you move like one. Speed is his language. The dark is his home.", "char2_btn": "Explore Nyx \u2192", "char3_name": "Astra", "char3_role": "The Strategist", "char3_lore": "Where others see chaos, Astra sees patterns. She moves three steps ahead with surgical precision.", "char3_btn": "Explore Astra \u2192", "char4_name": "Kairo", "char4_role": "The Phantom", "char4_lore": "Kairo leaves no trace, no echo, no shadow. The most dangerous Shadowseeker is the one you never see coming.", "char4_btn": "Explore Kairo \u2192", "char5_name": "Lyra", "char5_role": "The Oracle", "char5_lore": "Lyra hears what the shadows whisper. Her instincts are forged in the deepest dark.", "char5_btn": "Explore Lyra \u2192", "explore_tag": "Explore", "explore_title": "Where will you go next?", "explore1_title": "Shadow Quiz", "explore1_sub": "Competitive Exams", "explore2_title": "Shade", "explore2_sub": "Academics", "explore3_title": "Codex", "explore3_sub": "Archives", "footer_logo": "Shadowseekers", "footer_brand": "A world where only the sharpest minds survive the dark. Train. Compete. Earn. Become a legend.", "footer_col1_head": "Characters", "footer_col2_head": "Shade", "footer_col3_head1": "Competitive", "footer_col3_head2": "Academics", "footer_copy": "\u00a9 2026 Shadowseekers \u00b7 All rights reserved", "footer_quote": "Not everyone belongs here."};
+const DL = {"link_nav_home": "index.html", "link_char1": "Draven.html", "link_char2": "Nyx.html", "link_char3": "Astra.html", "link_char4": "Kairo.html", "link_char5": "Lyra.html", "link_comp1": "Shadow Quiz.html", "link_comp2": "shadowverse/index.html", "link_acad1": "shadowverse/index.html", "link_acad2": "Codex.html", "link_quiz_btn": "Shadow Quiz.html", "link_echoes_btn": "#", "link_explore1": "Shadow Quiz.html", "link_explore2": "shadowverse/index.html", "link_explore3": "Codex.html", "link_shade": "shadowverse/index.html", "link_shadowrecords": "shadowrecords/index.html"};
+
+// ── AUTH ──────────────────────────────────────────────────────────
+function tryAuth() {
+  if (document.getElementById('authInput').value === ADMIN_PASS) {
+    document.getElementById('authScreen').classList.add('gone');
+    document.getElementById('adminContent').style.display = 'block';
+    sessionStorage.setItem('admin_ok','1');
+    loadFields();
+  } else {
+    document.getElementById('authInput').classList.add('err');
+    document.getElementById('authErr').style.display = 'block';
+    setTimeout(() => {
+      document.getElementById('authInput').classList.remove('err');
+      document.getElementById('authErr').style.display = 'none';
+      document.getElementById('authInput').value = '';
+    }, 1500);
+  }
+}
+document.getElementById('authInput').addEventListener('keydown', e => { if(e.key==='Enter') tryAuth(); });
+if (sessionStorage.getItem('admin_ok') === '1') {
+  document.getElementById('authScreen').classList.add('gone');
+  document.getElementById('adminContent').style.display = 'block';
+  setTimeout(loadFields, 0);
+}
+
+// ── SIDEBAR ───────────────────────────────────────────────────────
+document.querySelectorAll('.sidebar-item').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.sidebar-item').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById('panel-' + btn.dataset.panel).classList.add('active');
+  });
+});
+
+// ── SYNC STATUS ───────────────────────────────────────────────────
+function setStatus(state, text) {
+  const el = document.getElementById('syncStatus');
+  el.className = 'sync-status ' + state;
+  el.textContent = text;
+}
+
+// ── LOAD from GAS → fill fields ───────────────────────────────────
+async function loadFields() {
+  setStatus('', '● LOADING...');
+  let content = {...DC};
+  let links   = {...DL};
+  try {
+    const res  = await fetch(SR_GAS + '?action=readHomepage', {redirect:'follow'});
+    const data = await res.json();
+    if (data.ok) {
+      content = {...DC, ...data.content};
+      links   = {...DL, ...data.links};
+      setStatus('synced', '● SYNCED');
+    } else { setStatus('error', '● GAS ERROR'); }
+  } catch(e) {
+    // fallback to localStorage
+    content = {...DC, ...JSON.parse(localStorage.getItem('ss_content') || '{}') };
+    links   = {...DL, ...JSON.parse(localStorage.getItem('ss_links')   || '{}') };
+    setStatus('error', '● OFFLINE · LOCAL ONLY');
+  }
+  document.querySelectorAll('[data-key]').forEach(el  => { if(content[el.dataset.key]  !== undefined) el.value = content[el.dataset.key]; });
+  document.querySelectorAll('[data-link]').forEach(el => { if(links[el.dataset.link]   !== undefined) el.value = links[el.dataset.link]; });
+}
+
+// ── SAVE → GAS + localStorage ─────────────────────────────────────
+document.getElementById('saveBtn').addEventListener('click', async () => {
+  const c = {}, l = {};
+  document.querySelectorAll('[data-key]').forEach(el  => { c[el.dataset.key]  = el.value; });
+  document.querySelectorAll('[data-link]').forEach(el => { l[el.dataset.link] = el.value; });
+
+  // Always save to localStorage first (instant, offline fallback)
+  localStorage.setItem('ss_content', JSON.stringify(c));
+  localStorage.setItem('ss_links',   JSON.stringify(l));
+
+  setStatus('saving', '● SYNCING...');
+  try {
+    const res  = await fetch(SR_GAS, {
+      method:  'POST',
+      headers: {'Content-Type': 'text/plain'},
+      body:    JSON.stringify({action: 'saveHomepage', content: c, links: l}),
+      redirect:'follow'
+    });
+    const data = await res.json();
+    if (data.ok) {
+      setStatus('synced', '● SYNCED');
+      const t = document.getElementById('toast');
+      t.classList.add('show');
+      setTimeout(() => t.classList.remove('show'), 2200);
+    } else {
+      setStatus('error', '● GAS ERROR · LOCAL SAVED');
+    }
+  } catch(e) {
+    setStatus('error', '● OFFLINE · LOCAL SAVED');
+  }
+});
+
+// ── RESET ─────────────────────────────────────────────────────────
+document.getElementById('resetBtn').addEventListener('click', async () => {
+  if (!confirm('Reset ALL content and links to defaults? This will overwrite GAS too.')) return;
+  localStorage.removeItem('ss_content');
+  localStorage.removeItem('ss_links');
+  try {
+    await fetch(SR_GAS, {
+      method:'POST', headers:{'Content-Type':'text/plain'},
+      body: JSON.stringify({action:'saveHomepage', content:{}, links:{}}),
+      redirect:'follow'
+    });
+  } catch(e) {}
+  loadFields();
+});
+</script>
+</body>
+</html>
