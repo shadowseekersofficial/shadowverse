@@ -1421,6 +1421,7 @@ async function submitLogin(){
     loggedInUser={shadowId:id, codename:members[id].codename||id};
     // Persist login across refreshes
     localStorage.setItem("shade_user", JSON.stringify(loggedInUser));
+    localStorage.setItem("ss_user", JSON.stringify({shadowId:id, codename:members[id].codename||id, passphrase:pw}));
     // Load user attempted questions from sheet
     await loadUserAttempted(id);
     closeLogin();
@@ -1430,7 +1431,7 @@ async function submitLogin(){
     el("login-id").classList.add("error");el("login-pw").classList.add("error");
   }
 }
-function logout(){loggedInUser=null;localStorage.removeItem("shade_user");renderTopbar();}
+function logout(){loggedInUser=null;localStorage.removeItem("shade_user");localStorage.removeItem("ss_user");renderTopbar();}
 
 // ── GAS FETCH ──
 async function gasFetch(action, data={}){
@@ -2744,8 +2745,8 @@ function showAdminStatus(id,msg,type){
 (async()=>{
   // Restore logged-in user first (SS ID persists across refreshes)
   try{
-    const savedUser=localStorage.getItem("shade_user");
-    if(savedUser) loggedInUser=JSON.parse(savedUser);
+    const savedUser=localStorage.getItem("shade_user")||localStorage.getItem("ss_user");
+    if(savedUser){const u=JSON.parse(savedUser);loggedInUser={shadowId:u.shadowId,codename:u.codename||u.shadowId};}
   }catch(e){}
 
   // Load from local cache first for speed
@@ -2924,3 +2925,4 @@ function showAdminStatus(id,msg,type){
 </script>
 </body>
 </html>
+
