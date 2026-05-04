@@ -1,0 +1,1175 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>ShadowLink · Operative Channel</title>
+<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@300;400;500;600;700&family=Share+Tech+Mono&family=Cinzel:wght@400;700;900&family=Exo+2:wght@200;300;400&display=swap" rel="stylesheet"/>
+
+<!-- Firebase v9 compat -->
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+:root{
+  --bg:#05050F;--bg2:#0A0A1A;--card:#0D0D20;
+  --border:#1a1a30;--purple:#7c3aed;--purple-dim:#4c1d95;
+  --cyan:#06b6d4;--cyan-dim:#0e7490;
+  --white:#f0f0ff;--muted:#4a4a6a;
+  --green:#10b981;--red:#ef4444;--gold:#f59e0b;
+  --gp:rgba(124,58,237,0.15);--gc:rgba(6,182,212,0.12);
+}
+body{background:var(--bg);color:var(--white);font-family:'Exo 2',sans-serif;min-height:100vh;overflow-x:hidden;}
+body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(rgba(124,58,237,0.025) 1px,transparent 1px),linear-gradient(90deg,rgba(124,58,237,0.025) 1px,transparent 1px);background-size:40px 40px;pointer-events:none;z-index:0;}
+body::after{content:'';position:fixed;top:-200px;left:-200px;width:600px;height:600px;background:radial-gradient(circle,rgba(124,58,237,0.07) 0%,transparent 70%);pointer-events:none;z-index:0;animation:driftGlow 12s ease-in-out infinite alternate;}
+@keyframes driftGlow{from{transform:translate(0,0)}to{transform:translate(300px,200px)}}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.4}}
+@keyframes msgIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}
+@keyframes slideUp{from{transform:translateY(20px);opacity:0}to{transform:translateY(0);opacity:1}}
+@keyframes pulseBadge{0%,100%{box-shadow:0 0 0 0 rgba(16,185,129,0.3)}50%{box-shadow:0 0 0 4px rgba(16,185,129,0)}}
+@keyframes incomingPulse{0%,100%{box-shadow:0 0 40px rgba(124,58,237,0.2)}50%{box-shadow:0 0 80px rgba(124,58,237,0.5)}}
+@keyframes speakPulse{0%,100%{box-shadow:0 0 20px rgba(6,182,212,0.3)}50%{box-shadow:0 0 50px rgba(6,182,212,0.8)}}
+@keyframes rotateBorder{to{transform:rotate(360deg)}}
+@keyframes scanLine{0%{transform:translateX(-100%)}100%{transform:translateX(500%)}}
+
+/* ── SETUP OVERLAY ── */
+.setup-overlay{position:fixed;inset:0;z-index:999;background:rgba(5,5,15,0.98);display:flex;align-items:center;justify-content:center;backdrop-filter:blur(8px);}
+.setup-card{width:500px;max-width:95vw;background:var(--card);border:1px solid rgba(124,58,237,0.35);border-radius:12px;padding:36px;box-shadow:0 0 80px rgba(124,58,237,0.15);}
+.setup-card h2{font-family:'Rajdhani',sans-serif;font-weight:700;font-size:22px;letter-spacing:3px;color:var(--cyan);margin-bottom:6px;}
+.setup-card .setup-sub{font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--muted);line-height:1.8;margin-bottom:24px;}
+.setup-steps{display:flex;flex-direction:column;gap:16px;}
+.setup-step{background:rgba(124,58,237,0.05);border:1px solid rgba(124,58,237,0.15);border-radius:8px;padding:16px;}
+.setup-step-title{font-family:'Rajdhani',sans-serif;font-weight:700;font-size:13px;letter-spacing:2px;color:var(--purple);margin-bottom:12px;}
+.setup-fields{display:flex;flex-direction:column;gap:8px;}
+.setup-row{display:flex;gap:8px;}
+.setup-group{flex:1;display:flex;flex-direction:column;gap:4px;}
+.setup-label{font-family:'Share Tech Mono',monospace;font-size:9px;color:var(--muted);letter-spacing:2px;}
+.setup-input{background:rgba(10,10,26,0.8);border:1px solid var(--border);border-radius:6px;color:var(--white);font-family:'Share Tech Mono',monospace;font-size:11px;padding:8px 12px;outline:none;width:100%;transition:border-color 0.2s;}
+.setup-input::placeholder{color:var(--muted);}
+.setup-input:focus{border-color:rgba(124,58,237,0.5);}
+.setup-btn{width:100%;padding:11px;background:linear-gradient(135deg,var(--purple),#5b21b6);border:none;border-radius:6px;color:white;font-family:'Rajdhani',sans-serif;font-weight:700;font-size:13px;letter-spacing:2px;cursor:pointer;transition:all 0.3s;margin-top:4px;}
+.setup-btn:hover{box-shadow:0 0 24px rgba(124,58,237,0.5);}
+.setup-note{font-family:'Share Tech Mono',monospace;font-size:9px;color:var(--muted);margin-top:10px;line-height:1.7;}
+.setup-note a{color:var(--cyan);text-decoration:none;}
+.setup-error{font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--red);margin-top:8px;padding:6px 10px;background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.2);border-radius:4px;display:none;}
+
+/* ── LOGIN OVERLAY ── */
+.login-overlay{position:fixed;inset:0;z-index:990;background:rgba(5,5,15,0.97);display:flex;align-items:center;justify-content:center;backdrop-filter:blur(8px);}
+.login-card{width:380px;max-width:95vw;background:var(--card);border:1px solid rgba(124,58,237,0.3);border-top:3px solid var(--gold);border-radius:10px;padding:32px;box-shadow:0 0 60px rgba(124,58,237,0.12);}
+.login-eyebrow{font-family:'Share Tech Mono',monospace;font-size:9px;color:var(--muted);letter-spacing:3px;margin-bottom:6px;}
+.login-title{font-family:'Cinzel',serif;font-size:18px;font-weight:700;color:var(--gold);letter-spacing:2px;margin-bottom:4px;}
+.login-sub{font-family:'Share Tech Mono',monospace;font-size:9px;color:var(--muted);line-height:1.8;margin-bottom:20px;border-left:2px solid rgba(240,165,0,0.2);padding-left:10px;}
+.login-field{margin-bottom:12px;}
+.login-label{font-family:'Share Tech Mono',monospace;font-size:9px;color:var(--muted);letter-spacing:2px;display:block;margin-bottom:4px;}
+.login-input{width:100%;background:rgba(10,10,26,0.9);border:1px solid var(--border);border-radius:6px;color:var(--white);font-family:'Share Tech Mono',monospace;font-size:12px;padding:9px 12px;outline:none;transition:border-color 0.2s;}
+.login-input::placeholder{color:var(--muted);}
+.login-input:focus{border-color:rgba(240,165,0,0.4);}
+.login-input.err{border-color:rgba(239,68,68,0.6);}
+.login-btn{width:100%;padding:11px;background:linear-gradient(135deg,rgba(240,165,0,0.9),rgba(180,100,0,0.9));border:none;border-radius:6px;color:var(--bg);font-family:'Rajdhani',sans-serif;font-weight:700;font-size:13px;letter-spacing:2px;cursor:pointer;transition:all 0.3s;margin-top:4px;}
+.login-btn:hover{box-shadow:0 0 20px rgba(240,165,0,0.4);}
+.login-error{font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--red);margin-top:8px;padding:6px 10px;background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.2);border-radius:4px;display:none;}
+.login-spinner{display:inline-block;width:12px;height:12px;border:2px solid rgba(5,5,15,0.3);border-top-color:var(--bg);border-radius:50%;animation:spin 0.6s linear infinite;vertical-align:middle;margin-right:6px;}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* ── APP LAYOUT ── */
+.app{position:relative;z-index:1;display:grid;grid-template-rows:60px 1fr;height:100vh;}
+
+/* ── TOPBAR ── */
+.topbar{display:flex;align-items:center;justify-content:space-between;padding:0 24px;border-bottom:1px solid var(--border);background:rgba(5,5,15,0.85);backdrop-filter:blur(20px);position:relative;}
+.topbar::after{content:'';position:absolute;bottom:-1px;left:0;width:100%;height:1px;background:linear-gradient(90deg,transparent,var(--purple),var(--cyan),transparent);}
+.logo{display:flex;align-items:center;gap:10px;font-family:'Rajdhani',sans-serif;font-weight:700;font-size:20px;letter-spacing:3px;color:var(--white);}
+.logo svg{width:30px;height:30px;}
+.logo .accent{color:var(--cyan);}
+.topbar-status{display:flex;align-items:center;gap:6px;font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--muted);letter-spacing:1px;}
+.status-dot{width:6px;height:6px;border-radius:50%;background:var(--green);box-shadow:0 0 8px var(--green);animation:pulse 2s infinite;}
+.topbar-actions{display:flex;align-items:center;gap:10px;}
+.my-id-badge{font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--cyan);letter-spacing:1px;border:1px solid rgba(6,182,212,0.3);padding:3px 8px;border-radius:4px;background:rgba(6,182,212,0.06);}
+.my-avatar{width:34px;height:34px;border-radius:50%;background:linear-gradient(135deg,var(--purple),var(--cyan));display:flex;align-items:center;justify-content:center;font-family:'Rajdhani',sans-serif;font-weight:700;font-size:13px;letter-spacing:1px;cursor:pointer;border:1px solid var(--purple);transition:box-shadow 0.3s;}
+.my-avatar:hover{box-shadow:0 0 16px rgba(124,58,237,0.5);}
+
+/* ── MAIN GRID ── */
+.main{display:grid;grid-template-columns:260px 1fr 270px;overflow:hidden;}
+
+/* ── SIDEBAR ── */
+.sidebar{border-right:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden;background:rgba(13,13,32,0.5);}
+.sidebar-section{padding:14px;border-bottom:1px solid var(--border);}
+.sidebar-label{font-family:'Share Tech Mono',monospace;font-size:9px;color:var(--muted);letter-spacing:3px;margin-bottom:10px;text-transform:uppercase;}
+.member-list{display:flex;flex-direction:column;gap:3px;}
+.member-item{display:flex;align-items:center;gap:9px;padding:7px 9px;border-radius:6px;cursor:pointer;transition:all 0.2s;position:relative;}
+.member-item:hover{background:rgba(124,58,237,0.08);}
+.member-item.active{background:rgba(124,58,237,0.12);}
+.member-item.active::before{content:'';position:absolute;left:0;top:50%;transform:translateY(-50%);width:2px;height:60%;background:var(--purple);border-radius:2px;}
+.m-avatar{width:34px;height:34px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:'Rajdhani',sans-serif;font-weight:700;font-size:12px;flex-shrink:0;position:relative;}
+.m-online-dot{position:absolute;bottom:1px;right:1px;width:8px;height:8px;border-radius:50%;border:1.5px solid var(--bg);background:var(--muted);}
+.m-online-dot.online{background:var(--green);box-shadow:0 0 6px var(--green);}
+.m-info{flex:1;min-width:0;}
+.m-name{font-family:'Rajdhani',sans-serif;font-weight:600;font-size:13px;color:var(--white);letter-spacing:0.5px;}
+.m-last{font-size:10px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:1px;}
+.m-meta{display:flex;flex-direction:column;align-items:flex-end;gap:3px;}
+.m-time{font-family:'Share Tech Mono',monospace;font-size:9px;color:var(--muted);}
+.unread-badge{background:var(--purple);color:white;font-size:9px;font-weight:700;padding:1px 5px;border-radius:10px;font-family:'Rajdhani',sans-serif;}
+
+/* group tab */
+.group-tab{display:flex;align-items:center;gap:9px;padding:9px;border-radius:6px;cursor:pointer;transition:all 0.2s;margin-bottom:4px;}
+.group-tab:hover{background:rgba(6,182,212,0.08);}
+.group-tab.active{background:rgba(6,182,212,0.1);}
+.group-tab.active::before{content:'';display:block;position:absolute;left:14px;width:2px;height:28px;background:var(--cyan);border-radius:2px;}
+.group-icon{width:34px;height:34px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:15px;flex-shrink:0;}
+
+/* ── CHAT AREA ── */
+.chat-area{display:flex;flex-direction:column;overflow:hidden;position:relative;}
+.chat-area::before{content:'';position:absolute;bottom:0;right:0;width:350px;height:350px;background:radial-gradient(circle,var(--gc) 0%,transparent 70%);pointer-events:none;z-index:0;}
+.chat-header{padding:12px 18px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;background:rgba(5,5,15,0.6);backdrop-filter:blur(10px);position:relative;z-index:1;flex-shrink:0;}
+.chat-header-left{display:flex;align-items:center;gap:10px;}
+.chat-user-name{font-family:'Rajdhani',sans-serif;font-weight:700;font-size:16px;letter-spacing:1px;}
+.chat-user-status{font-family:'Share Tech Mono',monospace;font-size:9px;color:var(--green);letter-spacing:1px;margin-top:1px;}
+.chat-actions{display:flex;gap:6px;}
+
+.btn-video{position:relative;display:flex;align-items:center;gap:7px;padding:7px 16px;background:linear-gradient(135deg,var(--purple),#5b21b6);border:1px solid rgba(124,58,237,0.5);border-radius:6px;color:white;font-family:'Rajdhani',sans-serif;font-weight:700;font-size:12px;letter-spacing:2px;cursor:pointer;transition:all 0.3s;overflow:hidden;}
+.btn-video:hover{box-shadow:0 0 20px rgba(124,58,237,0.6);transform:translateY(-1px);}
+.btn-video svg{width:14px;height:14px;}
+.btn-audio{display:flex;align-items:center;gap:6px;padding:7px 14px;background:rgba(6,182,212,0.1);border:1px solid rgba(6,182,212,0.35);border-radius:6px;color:var(--cyan);font-family:'Rajdhani',sans-serif;font-weight:700;font-size:12px;letter-spacing:2px;cursor:pointer;transition:all 0.3s;}
+.btn-audio:hover{background:rgba(6,182,212,0.18);box-shadow:0 0 16px rgba(6,182,212,0.3);}
+.btn-audio svg{width:14px;height:14px;}
+.btn-icon-sm{display:flex;align-items:center;justify-content:center;width:32px;height:32px;border-radius:6px;background:rgba(255,255,255,0.04);border:1px solid var(--border);cursor:pointer;transition:all 0.2s;color:var(--muted);}
+.btn-icon-sm:hover{background:rgba(124,58,237,0.1);border-color:var(--purple);color:var(--white);}
+.btn-icon-sm svg{width:14px;height:14px;}
+
+/* ── MESSAGES ── */
+.messages{flex:1;overflow-y:auto;padding:18px;display:flex;flex-direction:column;gap:14px;position:relative;z-index:1;}
+.messages::-webkit-scrollbar{width:3px;}
+.messages::-webkit-scrollbar-track{background:transparent;}
+.messages::-webkit-scrollbar-thumb{background:var(--border);border-radius:4px;}
+.msg-group{display:flex;flex-direction:column;gap:3px;}
+.msg-group.own{align-items:flex-end;}
+.msg-sender{font-family:'Share Tech Mono',monospace;font-size:9px;color:var(--muted);letter-spacing:1px;padding:0 10px;margin-bottom:1px;}
+.msg{max-width:65%;padding:9px 13px;border-radius:8px;font-size:13px;line-height:1.5;position:relative;}
+.msg.incoming{background:var(--card);border:1px solid var(--border);border-bottom-left-radius:2px;color:var(--white);}
+.msg.own{background:linear-gradient(135deg,var(--purple-dim),#2d1b69);border:1px solid rgba(124,58,237,0.3);border-bottom-right-radius:2px;color:var(--white);}
+.msg-time{font-family:'Share Tech Mono',monospace;font-size:8px;color:var(--muted);margin-top:2px;padding:0 4px;}
+.msg-group.own .msg-time{text-align:right;}
+.msg-system{text-align:center;font-family:'Share Tech Mono',monospace;font-size:9px;color:var(--muted);letter-spacing:2px;display:flex;align-items:center;gap:8px;}
+.msg-system::before,.msg-system::after{content:'';flex:1;height:1px;background:var(--border);}
+.call-log{display:flex;align-items:center;gap:10px;padding:9px 13px;background:rgba(124,58,237,0.06);border:1px solid rgba(124,58,237,0.15);border-radius:8px;max-width:240px;}
+.call-log-icon{width:34px;height:34px;border-radius:50%;background:rgba(124,58,237,0.18);display:flex;align-items:center;justify-content:center;color:var(--purple);flex-shrink:0;}
+.call-log-icon svg{width:15px;height:15px;}
+.call-log-text{font-size:12px;color:var(--white);font-family:'Rajdhani',sans-serif;font-weight:600;letter-spacing:0.5px;}
+.call-log-meta{font-family:'Share Tech Mono',monospace;font-size:9px;color:var(--muted);margin-top:2px;}
+
+/* ── INPUT ── */
+.chat-input-wrap{padding:12px 18px;border-top:1px solid var(--border);background:rgba(5,5,15,0.8);backdrop-filter:blur(10px);position:relative;z-index:1;flex-shrink:0;}
+.chat-input-row{display:flex;align-items:center;gap:8px;background:var(--card);border:1px solid var(--border);border-radius:8px;padding:7px 10px;transition:border-color 0.3s;}
+.chat-input-row:focus-within{border-color:rgba(124,58,237,0.4);box-shadow:0 0 0 2px rgba(124,58,237,0.07);}
+.chat-input{flex:1;background:none;border:none;outline:none;color:var(--white);font-family:'Exo 2',sans-serif;font-size:13px;caret-color:var(--purple);}
+.chat-input::placeholder{color:var(--muted);}
+.send-btn{width:30px;height:30px;border-radius:5px;background:var(--purple);border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;color:white;transition:all 0.2s;flex-shrink:0;}
+.send-btn:hover{background:#6d28d9;box-shadow:0 0 10px rgba(124,58,237,0.5);}
+.send-btn svg{width:13px;height:13px;}
+
+/* ── RIGHT PANEL ── */
+.right-panel{border-left:1px solid var(--border);display:flex;flex-direction:column;background:rgba(13,13,32,0.5);overflow-y:auto;}
+.right-panel::-webkit-scrollbar{width:3px;}
+.right-panel::-webkit-scrollbar-thumb{background:var(--border);}
+.panel-section{padding:14px;border-bottom:1px solid var(--border);}
+.panel-title{font-family:'Share Tech Mono',monospace;font-size:9px;color:var(--muted);letter-spacing:3px;margin-bottom:10px;}
+.online-list{display:flex;flex-direction:column;gap:6px;}
+.online-item{display:flex;align-items:center;gap:7px;padding:5px 0;}
+.oi-av{width:26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:'Rajdhani',sans-serif;font-weight:700;font-size:9px;flex-shrink:0;}
+.oi-name{font-size:12px;font-family:'Rajdhani',sans-serif;font-weight:600;color:var(--white);flex:1;}
+.oi-dot{width:6px;height:6px;border-radius:50%;background:var(--green);box-shadow:0 0 6px var(--green);flex-shrink:0;}
+
+.call-cta{background:linear-gradient(135deg,rgba(124,58,237,0.1),rgba(6,182,212,0.05));border:1px solid rgba(124,58,237,0.18);border-radius:10px;padding:14px;text-align:center;position:relative;overflow:hidden;}
+.call-cta-icon{width:48px;height:48px;border-radius:50%;background:linear-gradient(135deg,var(--purple),var(--cyan-dim));display:flex;align-items:center;justify-content:center;margin:0 auto 10px;box-shadow:0 0 20px rgba(124,58,237,0.35);animation:iconFloat 3s ease-in-out infinite;}
+@keyframes iconFloat{0%,100%{transform:translateY(0)}50%{transform:translateY(-4px)}}
+.call-cta-icon svg{width:22px;height:22px;color:white;}
+.call-cta-title{font-family:'Rajdhani',sans-serif;font-weight:700;font-size:13px;letter-spacing:1px;margin-bottom:3px;}
+.call-cta-sub{font-size:10px;color:var(--muted);margin-bottom:12px;font-family:'Share Tech Mono',monospace;}
+.btn-call-full{width:100%;padding:8px;background:linear-gradient(135deg,var(--purple),#5b21b6);border:none;border-radius:5px;color:white;font-family:'Rajdhani',sans-serif;font-weight:700;font-size:11px;letter-spacing:2px;cursor:pointer;transition:all 0.3s;display:flex;align-items:center;justify-content:center;gap:5px;margin-bottom:6px;}
+.btn-call-full:hover{box-shadow:0 0 16px rgba(124,58,237,0.5);}
+.btn-call-full svg{width:13px;height:13px;}
+.btn-call-audio{width:100%;padding:8px;background:rgba(6,182,212,0.1);border:1px solid rgba(6,182,212,0.3);border-radius:5px;color:var(--cyan);font-family:'Rajdhani',sans-serif;font-weight:700;font-size:11px;letter-spacing:2px;cursor:pointer;transition:all 0.3s;display:flex;align-items:center;justify-content:center;gap:5px;}
+.btn-call-audio:hover{background:rgba(6,182,212,0.18);}
+.btn-call-audio svg{width:13px;height:13px;}
+
+/* ── INCOMING CALL ── */
+.incoming-overlay{position:fixed;inset:0;z-index:200;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.88);backdrop-filter:blur(12px);opacity:0;pointer-events:none;transition:opacity 0.3s;}
+.incoming-overlay.active{opacity:1;pointer-events:all;}
+.incoming-card{background:var(--card);border:1px solid rgba(124,58,237,0.4);border-radius:20px;padding:36px;text-align:center;animation:incomingPulse 1.5s ease-in-out infinite;min-width:280px;}
+.incoming-avatar{width:76px;height:76px;border-radius:50%;background:linear-gradient(135deg,var(--purple),var(--cyan));display:flex;align-items:center;justify-content:center;font-family:'Rajdhani',sans-serif;font-weight:700;font-size:26px;margin:0 auto 14px;box-shadow:0 0 30px rgba(124,58,237,0.5);}
+.incoming-name{font-family:'Rajdhani',sans-serif;font-size:24px;font-weight:700;letter-spacing:3px;margin-bottom:5px;}
+.incoming-type{font-family:'Share Tech Mono',monospace;font-size:9px;color:var(--muted);letter-spacing:3px;margin-bottom:28px;}
+.incoming-actions{display:flex;gap:18px;justify-content:center;}
+.btn-decline{width:56px;height:56px;border-radius:50%;background:var(--red);border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all 0.2s;}
+.btn-decline:hover{box-shadow:0 0 18px rgba(239,68,68,0.6);transform:scale(1.05);}
+.btn-decline svg{width:22px;height:22px;color:white;}
+.btn-accept{width:56px;height:56px;border-radius:50%;background:var(--green);border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all 0.2s;}
+.btn-accept:hover{box-shadow:0 0 18px rgba(16,185,129,0.6);transform:scale(1.05);}
+.btn-accept svg{width:22px;height:22px;color:white;}
+
+/* ── CALL MODAL ── */
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.85);backdrop-filter:blur(10px);z-index:100;display:flex;align-items:center;justify-content:center;opacity:0;pointer-events:none;transition:opacity 0.3s;}
+.modal-overlay.active{opacity:1;pointer-events:all;}
+.video-modal{width:820px;max-width:97vw;background:var(--bg2);border:1px solid rgba(124,58,237,0.3);border-radius:14px;overflow:hidden;box-shadow:0 0 80px rgba(124,58,237,0.18),0 40px 80px rgba(0,0,0,0.6);transform:scale(0.95);transition:transform 0.3s;}
+.modal-overlay.active .video-modal{transform:scale(1);}
+.vm-header{padding:13px 18px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;background:rgba(5,5,15,0.5);}
+.vm-title{font-family:'Rajdhani',sans-serif;font-weight:700;font-size:15px;letter-spacing:2px;display:flex;align-items:center;gap:7px;}
+.call-status-badge{font-family:'Share Tech Mono',monospace;font-size:9px;background:rgba(16,185,129,0.12);border:1px solid rgba(16,185,129,0.3);color:var(--green);padding:2px 7px;border-radius:20px;letter-spacing:2px;animation:pulseBadge 2s infinite;}
+.call-status-connecting{color:var(--gold);background:rgba(245,158,11,0.1);border-color:rgba(245,158,11,0.3);}
+.call-timer{font-family:'Share Tech Mono',monospace;font-size:13px;color:var(--muted);letter-spacing:2px;}
+.video-grid{display:grid;grid-template-columns:1fr 1fr;gap:2px;background:#000;height:320px;}
+.video-tile{background:#0a0a14;position:relative;display:flex;align-items:center;justify-content:center;overflow:hidden;}
+.video-tile video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;z-index:2;}
+.v-avatar{width:76px;height:76px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:'Rajdhani',sans-serif;font-weight:700;font-size:26px;letter-spacing:1px;position:relative;z-index:1;}
+.video-tile-name{position:absolute;bottom:10px;left:10px;font-family:'Rajdhani',sans-serif;font-weight:600;font-size:12px;letter-spacing:1px;background:rgba(0,0,0,0.6);padding:2px 7px;border-radius:4px;z-index:3;}
+.muted-badge{position:absolute;bottom:10px;right:10px;width:22px;height:22px;border-radius:4px;background:rgba(239,68,68,0.8);display:flex;align-items:center;justify-content:center;z-index:3;}
+.muted-badge svg{width:11px;height:11px;color:white;}
+.audio-grid{height:320px;background:linear-gradient(135deg,#050508,#0a0a15);display:flex;align-items:center;justify-content:center;gap:60px;}
+.audio-participant{text-align:center;}
+.audio-av{width:86px;height:86px;border-radius:50%;margin:0 auto 11px;display:flex;align-items:center;justify-content:center;font-family:'Rajdhani',sans-serif;font-weight:700;font-size:28px;}
+.audio-av.speaking{animation:speakPulse 0.8s ease-in-out infinite;}
+.audio-name{font-family:'Rajdhani',sans-serif;font-weight:700;font-size:14px;letter-spacing:2px;}
+.audio-status{font-family:'Share Tech Mono',monospace;font-size:9px;color:var(--muted);letter-spacing:2px;margin-top:4px;}
+.call-controls{padding:14px 18px;display:flex;align-items:center;justify-content:center;gap:10px;border-top:1px solid var(--border);background:rgba(5,5,15,0.5);}
+.ctrl-btn{width:42px;height:42px;border-radius:50%;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:all 0.2s;border:1px solid var(--border);background:var(--card);color:var(--white);}
+.ctrl-btn svg{width:17px;height:17px;}
+.ctrl-btn:hover{transform:scale(1.08);border-color:var(--purple);}
+.ctrl-btn.active{background:rgba(124,58,237,0.2);border-color:var(--purple);color:var(--purple);}
+.ctrl-btn.danger{background:var(--red);border-color:var(--red);color:white;}
+.ctrl-btn.danger:hover{box-shadow:0 0 14px rgba(239,68,68,0.5);}
+
+/* ── TOAST ── */
+.toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%) translateY(80px);background:var(--card);border:1px solid rgba(124,58,237,0.3);border-radius:8px;padding:9px 18px;font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--cyan);letter-spacing:1px;z-index:500;transition:transform 0.4s cubic-bezier(0.34,1.56,0.64,1);white-space:nowrap;}
+.toast.show{transform:translateX(-50%) translateY(0);}
+
+/* ── EMPTY STATE ── */
+.empty-chat{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;opacity:0.4;}
+.empty-chat svg{width:40px;height:40px;color:var(--purple);}
+.empty-chat p{font-family:'Share Tech Mono',monospace;font-size:10px;letter-spacing:2px;color:var(--muted);}
+
+/* ── TYPING INDICATOR ── */
+.typing-dots{display:flex;gap:4px;align-items:center;padding:9px 13px;background:var(--card);border:1px solid var(--border);border-radius:8px;max-width:60px;}
+.typing-dot{width:5px;height:5px;border-radius:50%;background:var(--muted);}
+.typing-dot:nth-child(1){animation:typingBounce 1s 0s infinite;}
+.typing-dot:nth-child(2){animation:typingBounce 1s 0.15s infinite;}
+.typing-dot:nth-child(3){animation:typingBounce 1s 0.3s infinite;}
+@keyframes typingBounce{0%,100%{transform:translateY(0);opacity:0.4}50%{transform:translateY(-5px);opacity:1}}
+
+/* ── UTILITY ── */
+.hidden{display:none!important;}
+</style>
+</head>
+<body>
+
+<!-- ══ LOGIN OVERLAY ══ -->
+<div class="login-overlay hidden" id="loginOverlay">
+  <div class="login-card">
+    <div class="login-eyebrow">SHADOWSEEKERS ORDER · OPERATIVE AUTH</div>
+    <div class="login-title">SHADOW<span style="color:#A855F7">LINK</span></div>
+    <div class="login-sub">Enter your Shadow ID and passphrase to access the encrypted channel. Credentials are verified against the Order's records.</div>
+    <div class="login-field">
+      <label class="login-label">SHADOW ID</label>
+      <input class="login-input" id="login-id" placeholder="e.g. SS0001" onkeydown="if(event.key==='Enter')doLogin()"/>
+    </div>
+    <div class="login-field">
+      <label class="login-label">PASSPHRASE</label>
+      <input class="login-input" type="password" id="login-pw" placeholder="••••••••" onkeydown="if(event.key==='Enter')doLogin()"/>
+    </div>
+    <div class="login-error" id="loginError"></div>
+    <button class="login-btn" id="loginBtn" onclick="doLogin()">◈ IDENTIFY & ENTER</button>
+  </div>
+</div>
+
+<!-- ══ INCOMING CALL ══ -->
+<div class="incoming-overlay" id="incomingOverlay">
+  <div class="incoming-card">
+    <div class="incoming-avatar" id="incomingAvatar">??</div>
+    <div class="incoming-name" id="incomingName">OPERATIVE</div>
+    <div class="incoming-type" id="incomingType">INCOMING SHADOW CALL</div>
+    <div class="incoming-actions">
+      <button class="btn-decline" onclick="declineCall()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.68 13.31a16 16 0 003.41 2.6l1.27-1.27a2 2 0 012.11-.45 12.84 12.84 0 002.81.7 2 2 0 011.72 2v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07 19.42 19.42 0 01-3.33-2.67m-2.67-3.34a19.79 19.79 0 01-3.07-8.63A2 2 0 014.11 2h3a2 2 0 012 1.72 12.84 12.84 0 00.7 2.81 2 2 0 01-.45 2.11L8.09 9.91"/><line x1="23" y1="1" x2="1" y2="23"/></svg>
+      </button>
+      <button class="btn-accept" onclick="acceptCall()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07A19.5 19.5 0 013.07 9.81a19.79 19.79 0 01-3.07-8.63A2 2 0 012 1h3a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L6.91 8.09a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0122 16.92z"/></svg>
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ CALL MODAL ══ -->
+<div class="modal-overlay" id="callModal" onclick="handleModalClick(event)">
+  <div class="video-modal">
+    <div class="vm-header">
+      <div class="vm-title">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#7c3aed" stroke-width="2"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg>
+        <span id="callModalTitle">SHADOW CALL</span> · <span id="callModalName">OPERATIVE</span>
+        <div class="call-status-badge" id="callStatusBadge">CONNECTING</div>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px">
+        <div class="call-timer" id="callTimer">00:00</div>
+        <div class="btn-icon-sm" onclick="hangUp()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></div>
+      </div>
+    </div>
+    <div class="video-grid" id="videoGrid">
+      <div class="video-tile">
+        <video id="remoteVideo" autoplay playsinline></video>
+        <div class="v-avatar" id="remoteAvatar" style="background:linear-gradient(135deg,#7c3aed,#4c1d95)">??</div>
+        <div class="video-tile-name" id="remoteName">OPERATIVE</div>
+      </div>
+      <div class="video-tile">
+        <video id="localVideo" autoplay playsinline muted></video>
+        <div class="v-avatar" id="localAvatar" style="background:linear-gradient(135deg,#4c1d95,#1e1b4b)">ME</div>
+        <div class="video-tile-name" id="localVideoName">YOU</div>
+        <div class="muted-badge" id="mutedBadge" style="display:none"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="1" y1="1" x2="23" y2="23"/><path d="M9 9v3a3 3 0 005.12 2.12M15 9.34V4a3 3 0 00-5.94-.6"/><path d="M17 16.95A7 7 0 015 12v-2m14 0v2a7 7 0 01-.11 1.23M12 19v4M8 23h8"/></svg></div>
+      </div>
+    </div>
+    <div class="audio-grid" id="audioGrid" style="display:none">
+      <div class="audio-participant">
+        <div class="audio-av" id="remoteAudioAv" style="background:linear-gradient(135deg,#7c3aed,#4c1d95)">??</div>
+        <div class="audio-name" id="remoteAudioName">OPERATIVE</div>
+        <div class="audio-status" id="remoteAudioStatus">CONNECTING...</div>
+      </div>
+      <div class="audio-participant">
+        <div class="audio-av" id="localAudioAv" style="background:linear-gradient(135deg,#4c1d95,#1e1b4b)">ME</div>
+        <div class="audio-name" id="localAudioName">YOU</div>
+        <div class="audio-status" id="localAudioStatus">LIVE</div>
+      </div>
+    </div>
+    <div class="call-controls">
+      <div class="ctrl-btn active" id="btnMic" onclick="toggleMic()" title="Mute/Unmute">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3z"/><path d="M19 10v2a7 7 0 01-14 0v-2M12 19v4M8 23h8"/></svg>
+      </div>
+      <div class="ctrl-btn active" id="btnCam" onclick="toggleCamera()" title="Camera">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg>
+      </div>
+      <div class="ctrl-btn active" id="btnSpeaker" onclick="toggleSpeaker()" title="Speaker">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 010 14.14M15.54 8.46a5 5 0 010 7.07"/></svg>
+      </div>
+      <div class="ctrl-btn danger" onclick="hangUp()" title="End call">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.68 13.31a16 16 0 003.41 2.6l1.27-1.27a2 2 0 012.11-.45 12.84 12.84 0 002.81.7 2 2 0 011.72 2v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07 19.42 19.42 0 01-3.33-2.67m-2.67-3.34a19.79 19.79 0 01-3.07-8.63A2 2 0 014.11 2h3a2 2 0 012 1.72 12.84 12.84 0 00.7 2.81 2 2 0 01-.45 2.11L8.09 9.91"/><line x1="23" y1="1" x2="1" y2="23"/></svg>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ TOAST ══ -->
+<div class="toast" id="toast"></div>
+
+<!-- ══ MAIN APP ══ -->
+<div class="app" id="mainApp" style="display:none">
+  <header class="topbar">
+    <div class="logo">
+      <svg viewBox="0 0 32 32" fill="none">
+        <polygon points="16,2 30,10 30,22 16,30 2,22 2,10" stroke="#7c3aed" stroke-width="1.5" fill="rgba(124,58,237,0.08)"/>
+        <polygon points="16,7 25,12 25,20 16,25 7,20 7,12" stroke="#06b6d4" stroke-width="1" fill="rgba(6,182,212,0.06)"/>
+        <circle cx="16" cy="16" r="3" fill="#7c3aed"/>
+      </svg>
+      SHADOW<span class="accent">LINK</span>
+    </div>
+    <div class="topbar-status">
+      <div class="status-dot"></div>
+      ENCRYPTED · SHADOW PROTOCOL
+    </div>
+    <div class="topbar-actions">
+      <div class="my-id-badge" id="myIdBadge">NOT LINKED</div>
+      <div class="my-avatar" id="myAvatar">??</div>
+    </div>
+  </header>
+
+  <div class="main">
+    <!-- SIDEBAR -->
+    <aside class="sidebar">
+      <!-- Group Chat -->
+      <div class="sidebar-section">
+        <div class="sidebar-label">Channels</div>
+        <div class="group-tab active" id="groupTab" onclick="selectChannel('group')" style="position:relative">
+          <div class="group-icon" style="background:rgba(6,182,212,0.1);border:1px solid rgba(6,182,212,0.25);">⬡</div>
+          <div class="m-info">
+            <div class="m-name" style="font-size:13px;">SHADOW COUNCIL</div>
+            <div class="m-last" id="groupLastMsg">All operatives</div>
+          </div>
+        </div>
+      </div>
+      <!-- Direct Messages -->
+      <div class="sidebar-section" style="flex:1;overflow-y:auto;overflow-x:hidden;">
+        <div class="sidebar-label">Direct</div>
+        <div class="member-list" id="memberList">
+          <div style="font-family:'Share Tech Mono',monospace;font-size:9px;color:var(--muted);letter-spacing:1px;padding:8px 4px;">Loading operatives...</div>
+        </div>
+      </div>
+    </aside>
+
+    <!-- CHAT AREA -->
+    <main class="chat-area">
+      <div class="chat-header">
+        <div class="chat-header-left">
+          <div id="chatHeaderAvatar" style="width:36px;height:36px;border-radius:50%;background:linear-gradient(135deg,#06b6d4,#0e7490);display:flex;align-items:center;justify-content:center;font-family:'Rajdhani',sans-serif;font-weight:700;font-size:13px;flex-shrink:0;">⬡</div>
+          <div>
+            <div class="chat-user-name" id="chatTitle">SHADOW COUNCIL</div>
+            <div class="chat-user-status" id="chatSubtitle">● ONLINE · GROUP CHANNEL</div>
+          </div>
+        </div>
+        <div class="chat-actions" id="chatActions">
+          <button class="btn-video" onclick="initiateCall('video')">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg>
+            VIDEO
+          </button>
+          <button class="btn-audio" onclick="initiateCall('audio')">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07A19.5 19.5 0 013.07 9.81a19.79 19.79 0 01-3.07-8.63A2 2 0 012 1h3a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L6.91 8.09a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0122 16.92z"/></svg>
+            VOICE
+          </button>
+        </div>
+      </div>
+
+      <div class="messages" id="messages">
+        <div class="empty-chat" id="emptyChat">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
+          <p>SELECT A CHANNEL TO BEGIN</p>
+        </div>
+      </div>
+
+      <div class="chat-input-wrap">
+        <div class="chat-input-row">
+          <input class="chat-input" id="msgInput" placeholder="Encrypt and transmit..." onkeydown="handleKey(event)" oninput="handleTyping()"/>
+          <button class="send-btn" onclick="sendMessage()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+          </button>
+        </div>
+      </div>
+    </main>
+
+    <!-- RIGHT PANEL -->
+    <aside class="right-panel">
+      <div class="panel-section">
+        <div class="panel-title">ONLINE NOW</div>
+        <div class="online-list" id="onlineList">
+          <div style="font-family:'Share Tech Mono',monospace;font-size:9px;color:var(--muted);">Scanning...</div>
+        </div>
+      </div>
+
+      <div class="panel-section">
+        <div class="panel-title">SECURE CALL</div>
+        <div class="call-cta">
+          <div class="call-cta-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg>
+          </div>
+          <div class="call-cta-title">SHADOW CALL</div>
+          <div class="call-cta-sub">WebRTC · Shadow Protocol</div>
+          <button class="btn-call-full" onclick="initiateCall('video')">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg>
+            VIDEO CALL
+          </button>
+          <button class="btn-call-audio" onclick="initiateCall('audio')">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07A19.5 19.5 0 013.07 9.81a19.79 19.79 0 01-3.07-8.63A2 2 0 012 1h3a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L6.91 8.09a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0122 16.92z"/></svg>
+            VOICE ONLY
+          </button>
+        </div>
+      </div>
+    </aside>
+  </div>
+</div>
+
+<script>
+// ══════════════════════════════════════════════════════════════════
+// HARDCODED CONFIG — no setup needed
+// ══════════════════════════════════════════════════════════════════
+let _cfg = {
+  firebase: {
+    apiKey:      "AIzaSyDywRTk0ptPW9ArkV-r7DkKJEX02x8UFvg",
+    authDomain:  "shadowlink-83fce.firebaseapp.com",
+    databaseURL: "https://shadowlink-83fce-default-rtdb.firebaseio.com",
+    projectId:   "shadowlink-83fce",
+  },
+  gasUrl: "https://script.google.com/macros/s/AKfycbyTadW-WF4vnpaciFv8Qv58ahWSQ7KVmQfxJA75_z5fZN3UEBunnDPAeq_i5jiu35sYjQ/exec",
+};
+
+// Current user
+let myUser = null; // { shadowId, codename, color, initials }
+
+// Firebase
+let db = null;
+
+// Active chat state
+let activeChannel = 'group'; // 'group' | shadowId of DM target
+let activeDMTarget = null;   // { shadowId, codename, color, initials }
+
+// Members fetched from Sheets
+let knownMembers = {}; // shadowId -> { shadowId, codename, passphrase, color }
+
+// Presence
+let presenceRef = null;
+
+// WebRTC state
+let peerConn = null, localStream = null, remoteStream = null;
+let callType = 'video', isCallActive = false, isCaller = false;
+let currentCallId = null, callRef = null;
+let timerInterval = null, seconds = 0;
+let micMuted = false, camOff = false, speakerMuted = false;
+
+// Typing
+let typingTimeout = null;
+
+// Listeners to detach on channel switch
+let chatListener = null;
+let chatListenerRef = null;
+
+// ARCHETYPE COLORS (from shadowrecords)
+const ARCHETYPE_COLORS = {
+  Draven:'#E63946',Nyx:'#A855F7',Lyra:'#06B6D4',Astra:'#F0A500',Kairo:'#10B981'
+};
+
+const ICE_SERVERS = {
+  iceServers:[
+    {urls:'stun:stun.l.google.com:19302'},
+    {urls:'stun:stun1.l.google.com:19302'},
+  ]
+};
+
+// ══════════════════════════════════════════════════════════════════
+// HELPERS
+// ══════════════════════════════════════════════════════════════════
+function el(id){return document.getElementById(id);}
+function showToast(msg){
+  const t=el('toast');t.textContent=msg;t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'),3000);
+}
+function ts(){return new Date().toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'});}
+function formatTime(s){return String(Math.floor(s/60)).padStart(2,'0')+':'+String(s%60).padStart(2,'0');}
+
+function memberColor(shadowId){
+  // deterministic color from shadowId
+  const colors=['#E63946','#A855F7','#06B6D4','#F0A500','#10B981','#7c3aed','#f97316','#ec4899'];
+  let h=0;for(const c of shadowId)h=(h*31+c.charCodeAt(0))%colors.length;
+  return colors[Math.abs(h)];
+}
+function initials(codename){return (codename||'??').substring(0,2).toUpperCase();}
+
+// ══════════════════════════════════════════════════════════════════
+// AUTO-INIT FIREBASE ON PAGE LOAD
+// ══════════════════════════════════════════════════════════════════
+(function autoInit(){
+  try{
+    firebase.initializeApp(_cfg.firebase);
+    db = firebase.database();
+    el('loginOverlay').classList.remove('hidden');
+    if(_cfg.gasUrl) pullMembersFromSheets();
+  }catch(err){
+    console.error('Firebase init error:', err);
+  }
+})();
+
+// ══════════════════════════════════════════════════════════════════
+// MEMBER AUTH (Google Sheets)
+// ══════════════════════════════════════════════════════════════════
+async function pullMembersFromSheets(){
+  if(!_cfg.gasUrl) return;
+  try{
+    const res = await fetch(_cfg.gasUrl+'?action=read');
+    const text = await res.text();
+    const clean = text.replace(/^[^[{]*/, '').replace(/[^}\]]*$/, '');
+    const data = JSON.parse(clean);
+    if(Array.isArray(data)){
+      data.forEach(row=>{
+        if(row.shadowId){
+          knownMembers[row.shadowId.toUpperCase()]={
+            shadowId:row.shadowId.toUpperCase(),
+            codename:row.codename||row.shadowId,
+            passphrase:row.passphrase||'',
+            color: memberColor(row.shadowId),
+          };
+        }
+      });
+    }
+  }catch(e){
+    // silent fail — offline login still possible if no GAS
+    console.warn('Could not pull members from sheets:', e);
+  }
+}
+
+async function doLogin(){
+  const shadowId = el('login-id').value.trim().toUpperCase();
+  const pw = el('login-pw').value;
+  if(!shadowId){showLoginError('Enter your Shadow ID.');return;}
+
+  const btn = el('loginBtn');
+  btn.innerHTML = '<span class="login-spinner"></span>VERIFYING...';
+  btn.disabled = true;
+  el('loginError').style.display = 'none';
+
+  // If we have members locally, verify immediately
+  if(Object.keys(knownMembers).length > 0){
+    const m = knownMembers[shadowId];
+    if(m && m.passphrase && m.passphrase === pw){
+      loginSuccess(m.shadowId, m.codename, m.color||memberColor(shadowId));
+      return;
+    } else if(m && (!m.passphrase || m.passphrase==='')){
+      // No passphrase set — allow entry (open access)
+      loginSuccess(m.shadowId, m.codename, m.color||memberColor(shadowId));
+      return;
+    }
+    // Not found or wrong pw
+  }
+
+  // Try fetching fresh from Sheets
+  if(_cfg.gasUrl){
+    await pullMembersFromSheets();
+    const m = knownMembers[shadowId];
+    if(m){
+      if(!m.passphrase || m.passphrase==='' || m.passphrase===pw){
+        loginSuccess(m.shadowId, m.codename, m.color||memberColor(shadowId));
+        return;
+      }
+    }
+  }
+
+  // Fallback: if no GAS URL, allow any login (dev mode)
+  if(!_cfg.gasUrl){
+    loginSuccess(shadowId, shadowId, memberColor(shadowId));
+    return;
+  }
+
+  btn.innerHTML = '◈ IDENTIFY & ENTER';
+  btn.disabled = false;
+  showLoginError('Invalid Shadow ID or passphrase. Access denied.');
+}
+
+function showLoginError(msg){
+  const e=el('loginError');e.textContent='▲ '+msg;e.style.display='block';
+  el('login-id').classList.add('err');el('login-pw').classList.add('err');
+  el('loginBtn').innerHTML='◈ IDENTIFY & ENTER';el('loginBtn').disabled=false;
+}
+
+function loginSuccess(shadowId, codename, color){
+  myUser = {
+    shadowId,
+    codename: codename.toUpperCase(),
+    color: color||memberColor(shadowId),
+    initials: initials(codename),
+  };
+
+  el('loginOverlay').classList.add('hidden');
+  el('mainApp').style.display='';
+
+  // Update topbar
+  el('myIdBadge').textContent = shadowId + ' · ' + myUser.codename;
+  el('myAvatar').textContent = myUser.initials;
+  el('myAvatar').style.background = `linear-gradient(135deg, ${myUser.color}, ${myUser.color}88)`;
+
+  el('localAvatar').textContent = myUser.initials;
+  el('localAudioAv').textContent = myUser.initials;
+
+  // Start presence + load members
+  initPresence();
+  loadOnlineMembers();
+  renderMemberSidebar();
+  selectChannel('group');
+  listenForIncomingCalls();
+
+  showToast('◈ WELCOME ' + myUser.codename + ' · SHADOW PROTOCOL ACTIVE');
+}
+
+// ══════════════════════════════════════════════════════════════════
+// PRESENCE
+// ══════════════════════════════════════════════════════════════════
+function initPresence(){
+  const userPresenceRef = db.ref('shadowlink/presence/'+myUser.shadowId);
+  const connectedRef = db.ref('.info/connected');
+
+  connectedRef.on('value', snap=>{
+    if(!snap.val()) return;
+    userPresenceRef.set({
+      shadowId: myUser.shadowId,
+      codename: myUser.codename,
+      color: myUser.color,
+      lastSeen: firebase.database.ServerValue.TIMESTAMP,
+      online: true,
+    });
+    userPresenceRef.onDisconnect().update({online:false, lastSeen: firebase.database.ServerValue.TIMESTAMP});
+  });
+
+  presenceRef = userPresenceRef;
+}
+
+function loadOnlineMembers(){
+  db.ref('shadowlink/presence').on('value', snap=>{
+    const data = snap.val()||{};
+    const online = Object.values(data).filter(u=>u.online && u.shadowId!==myUser.shadowId);
+
+    // Update online list in right panel
+    el('onlineList').innerHTML = online.length
+      ? online.map(u=>`
+        <div class="online-item">
+          <div class="oi-av" style="background:linear-gradient(135deg,${u.color||'#7c3aed'},${(u.color||'#7c3aed')}88)">${initials(u.codename)}</div>
+          <div class="oi-name">${(u.codename||u.shadowId).toUpperCase()}</div>
+          <div class="oi-dot"></div>
+        </div>`).join('')
+      : '<div style="font-family:\'Share Tech Mono\',monospace;font-size:9px;color:var(--muted);">No others online</div>';
+
+    // Also update member list online dots
+    renderMemberSidebar(data);
+
+    // Also update knownMembers from presence (fills gaps from sheets)
+    Object.values(data).forEach(u=>{
+      if(u.shadowId && !knownMembers[u.shadowId]){
+        knownMembers[u.shadowId]={shadowId:u.shadowId,codename:u.codename,color:u.color,passphrase:''};
+      }
+    });
+  });
+}
+
+// ══════════════════════════════════════════════════════════════════
+// SIDEBAR
+// ══════════════════════════════════════════════════════════════════
+function renderMemberSidebar(presenceData={}){
+  // Collect all known members minus self
+  const all = Object.values(knownMembers).filter(m=>m.shadowId!==myUser.shadowId);
+  if(!all.length){
+    el('memberList').innerHTML='<div style="font-family:\'Share Tech Mono\',monospace;font-size:9px;color:var(--muted);padding:4px;">No other operatives</div>';
+    return;
+  }
+
+  const onlineIds = new Set(Object.keys(presenceData||{}).filter(id=>presenceData[id]&&presenceData[id].online));
+
+  el('memberList').innerHTML = all.map(m=>{
+    const isOnline = onlineIds.has(m.shadowId);
+    const isActive = activeChannel==='dm' && activeDMTarget && activeDMTarget.shadowId===m.shadowId;
+    const color = m.color||memberColor(m.shadowId);
+    return `<div class="member-item${isActive?' active':''}" onclick="selectChannel('dm','${m.shadowId}')">
+      <div class="m-avatar" style="background:linear-gradient(135deg,${color},${color}88)">
+        ${initials(m.codename)}
+        <div class="m-online-dot${isOnline?' online':''}"></div>
+      </div>
+      <div class="m-info">
+        <div class="m-name">${(m.codename||m.shadowId).toUpperCase()}</div>
+        <div class="m-last">${isOnline?'● online':'offline'}</div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ══════════════════════════════════════════════════════════════════
+// CHANNEL SELECTION
+// ══════════════════════════════════════════════════════════════════
+function selectChannel(type, targetId=null){
+  // Detach previous listener
+  if(chatListenerRef && chatListener){
+    chatListenerRef.off('child_added', chatListener);
+    chatListener=null; chatListenerRef=null;
+  }
+
+  // Clear typing
+  stopTyping();
+
+  if(type==='group'){
+    activeChannel='group'; activeDMTarget=null;
+    el('groupTab').classList.add('active');
+    el('chatTitle').textContent='SHADOW COUNCIL';
+    el('chatSubtitle').textContent='● GROUP CHANNEL · ALL OPERATIVES';
+    el('chatHeaderAvatar').textContent='⬡';
+    el('chatHeaderAvatar').style.background='linear-gradient(135deg,#06b6d4,#0e7490)';
+    el('chatHeaderAvatar').style.borderRadius='8px';
+    el('chatHeaderAvatar').style.fontSize='16px';
+
+    clearMessages();
+    listenToChat('shadowlink/messages/group');
+    listenToGroupTyping();
+
+  } else if(type==='dm' && targetId){
+    const m = knownMembers[targetId];
+    if(!m){showToast('OPERATIVE NOT FOUND');return;}
+
+    activeChannel='dm'; activeDMTarget=m;
+    el('groupTab').classList.remove('active');
+    el('chatTitle').textContent = (m.codename||m.shadowId).toUpperCase();
+    el('chatSubtitle').textContent = '● DIRECT · ENCRYPTED';
+    el('chatHeaderAvatar').textContent = initials(m.codename);
+    el('chatHeaderAvatar').style.background = `linear-gradient(135deg,${m.color||memberColor(targetId)},${(m.color||memberColor(targetId))}88)`;
+    el('chatHeaderAvatar').style.borderRadius='50%';
+    el('chatHeaderAvatar').style.fontSize='13px';
+
+    clearMessages();
+    // DM path: sorted shadowIds as key so both users see same room
+    const dmKey = [myUser.shadowId, targetId].sort().join('_');
+    listenToChat('shadowlink/messages/dm_'+dmKey);
+    listenToDMTyping(dmKey);
+
+    renderMemberSidebar();
+  }
+}
+
+function clearMessages(){
+  el('messages').innerHTML='';
+  el('msgInput').value='';
+}
+
+// ══════════════════════════════════════════════════════════════════
+// REAL-TIME CHAT
+// ══════════════════════════════════════════════════════════════════
+let renderedMsgKeys = new Set();
+
+function listenToChat(path){
+  chatListenerRef = db.ref(path).limitToLast(80);
+  renderedMsgKeys.clear();
+
+  chatListener = chatListenerRef.on('child_added', snap=>{
+    const msg = snap.val();
+    if(!msg || renderedMsgKeys.has(snap.key)) return;
+    renderedMsgKeys.add(snap.key);
+    renderMessage(msg);
+  });
+}
+
+function renderMessage(msg){
+  const msgs = el('messages');
+  const isOwn = msg.senderId === myUser.shadowId;
+
+  // Date separator (simplified: show "TODAY" once if needed)
+  // Call log
+  if(msg.type==='call'){
+    const icon = msg.callType==='video'
+      ? `<polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/>`
+      : `<path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07A19.5 19.5 0 013.07 9.81a19.79 19.79 0 01-3.07-8.63A2 2 0 012 1h3a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L6.91 8.09a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0122 16.92z"/>`;
+    const div=document.createElement('div');
+    div.className='call-log';
+    div.innerHTML=`<div class="call-log-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">${icon}</svg></div><div><div class="call-log-text">${msg.callType==='video'?'Video':'Voice'} call · ${msg.duration||'—'}</div><div class="call-log-meta">${msg.senderName||msg.senderId} · ${msg.timeStr||''}</div></div>`;
+    msgs.appendChild(div);
+  } else {
+    const group=document.createElement('div');
+    group.className='msg-group'+(isOwn?' own':'');
+    group.style.animation='msgIn 0.3s ease';
+    const color = (knownMembers[msg.senderId]||{}).color || memberColor(msg.senderId||'');
+    const senderLabel = isOwn?'':`<div class="msg-sender" style="color:${color}">${(msg.senderName||msg.senderId||'?').toUpperCase()}</div>`;
+    group.innerHTML=`${senderLabel}<div class="msg ${isOwn?'own':'incoming'}">${escHtml(msg.text)}</div><div class="msg-time">${msg.timeStr||''}</div>`;
+    msgs.appendChild(group);
+  }
+
+  msgs.scrollTop=msgs.scrollHeight;
+}
+
+function escHtml(s){
+  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function sendMessage(){
+  const input=el('msgInput');
+  const text=input.value.trim();
+  if(!text||!db||!myUser) return;
+
+  const path = activeChannel==='group'
+    ? 'shadowlink/messages/group'
+    : 'shadowlink/messages/dm_'+[myUser.shadowId, activeDMTarget?.shadowId].sort().join('_');
+
+  db.ref(path).push({
+    type:'text',
+    text,
+    senderId:myUser.shadowId,
+    senderName:myUser.codename,
+    timeStr:ts(),
+    ts:firebase.database.ServerValue.TIMESTAMP,
+  });
+
+  input.value='';
+  stopTyping();
+}
+
+function handleKey(e){
+  if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendMessage();}
+}
+
+// ══════════════════════════════════════════════════════════════════
+// TYPING INDICATOR
+// ══════════════════════════════════════════════════════════════════
+let typingRefPath = null;
+
+function listenToGroupTyping(){
+  typingRefPath = 'shadowlink/typing/group';
+  db.ref(typingRefPath).on('value', snap=>{
+    renderTyping(snap.val()||{});
+  });
+}
+
+function listenToDMTyping(dmKey){
+  typingRefPath = 'shadowlink/typing/dm_'+dmKey;
+  db.ref(typingRefPath).on('value', snap=>{
+    renderTyping(snap.val()||{});
+  });
+}
+
+function renderTyping(data){
+  const typists = Object.entries(data)
+    .filter(([id,v])=>v&&id!==myUser.shadowId)
+    .map(([id])=>(knownMembers[id]||{codename:id}).codename.toUpperCase());
+
+  let indicator = document.getElementById('typingIndicator');
+  if(typists.length){
+    if(!indicator){
+      indicator=document.createElement('div');
+      indicator.id='typingIndicator';
+      indicator.style.cssText='padding:2px 0';
+      const g=document.createElement('div');
+      g.className='msg-group';
+      g.appendChild(indicator);
+      el('messages').appendChild(g);
+    }
+    indicator.innerHTML=`<div class="typing-dots"><div class="typing-dot"></div><div class="typing-dot"></div><div class="typing-dot"></div></div>`;
+    indicator.title=typists.join(', ')+' typing...';
+    el('messages').scrollTop=el('messages').scrollHeight;
+  } else {
+    if(indicator&&indicator.parentElement){
+      indicator.parentElement.remove();
+    }
+  }
+}
+
+function handleTyping(){
+  if(!typingRefPath||!myUser) return;
+  db.ref(typingRefPath+'/'+myUser.shadowId).set(true);
+  clearTimeout(typingTimeout);
+  typingTimeout=setTimeout(stopTyping, 3000);
+}
+
+function stopTyping(){
+  clearTimeout(typingTimeout);
+  if(typingRefPath&&myUser) db.ref(typingRefPath+'/'+myUser.shadowId).set(false);
+}
+
+// ══════════════════════════════════════════════════════════════════
+// WEBRTC — CALLS
+// ══════════════════════════════════════════════════════════════════
+async function initiateCall(type){
+  if(!db){showToast('FIREBASE NOT CONNECTED');return;}
+  if(isCallActive){showToast('CALL ALREADY ACTIVE');return;}
+  if(!myUser){showToast('NOT LOGGED IN');return;}
+
+  // Target: DM target or group (first online operative)
+  let targetId = null;
+  if(activeDMTarget) targetId = activeDMTarget.shadowId;
+  // For group calls, leave targetId null (broadcasts to all)
+
+  callType=type; isCaller=true;
+  currentCallId=myUser.shadowId+'_'+Date.now();
+
+  try{
+    localStream=await navigator.mediaDevices.getUserMedia({video:type==='video',audio:true});
+  }catch(e){showToast('MIC/CAMERA ACCESS DENIED');return;}
+
+  openCallModal(type, targetId?(knownMembers[targetId]||{codename:targetId}).codename.toUpperCase():'COUNCIL',
+    targetId?initials((knownMembers[targetId]||{codename:targetId}).codename):'⬡',
+    targetId?(knownMembers[targetId]||{}).color||memberColor(targetId):'#06b6d4,#0e7490');
+
+  if(type==='video') el('localVideo').srcObject=localStream;
+
+  peerConn=new RTCPeerConnection(ICE_SERVERS);
+  localStream.getTracks().forEach(t=>peerConn.addTrack(t,localStream));
+
+  remoteStream=new MediaStream();
+  peerConn.ontrack=ev=>{
+    ev.streams[0].getTracks().forEach(t=>remoteStream.addTrack(t));
+    if(type==='video'){el('remoteVideo').srcObject=remoteStream;el('remoteAvatar').style.display='none';}
+    else{const a=new Audio();a.srcObject=remoteStream;a.play();el('remoteAudioStatus').textContent='CONNECTED';el('remoteAudioAv').classList.add('speaking');}
+    setCallStatus('LIVE');startCallTimer();
+  };
+
+  callRef=db.ref('shadowlink/calls/'+currentCallId);
+  callRef.set({
+    callerId:myUser.shadowId,callerName:myUser.codename,
+    calleeId:targetId||'__group__',
+    type:callType,status:'ringing',ts:firebase.database.ServerValue.TIMESTAMP
+  });
+
+  peerConn.onicecandidate=ev=>{if(ev.candidate)callRef.child('callerCandidates').push(ev.candidate.toJSON());};
+
+  const offer=await peerConn.createOffer();
+  await peerConn.setLocalDescription(offer);
+  callRef.child('offer').set({type:offer.type,sdp:offer.sdp});
+
+  callRef.child('answer').on('value',async snap=>{
+    const ans=snap.val();
+    if(ans&&peerConn&&!peerConn.currentRemoteDescription)
+      await peerConn.setRemoteDescription(new RTCSessionDescription(ans));
+  });
+  callRef.child('calleeCandidates').on('child_added',async snap=>{
+    const c=snap.val();if(c&&peerConn)await peerConn.addIceCandidate(new RTCIceCandidate(c));
+  });
+  callRef.child('status').on('value',snap=>{if(snap.val()==='ended'&&isCallActive)hangUp(true);});
+
+  showToast('◈ CALLING · SHADOW PROTOCOL ACTIVE');
+}
+
+function listenForIncomingCalls(){
+  db.ref('shadowlink/calls').on('child_added',async snap=>{
+    const call=snap.val();
+    if(!call) return;
+    const isForMe=call.calleeId===myUser.shadowId||call.calleeId==='__group__';
+    if(!isForMe||call.callerId===myUser.shadowId||call.status!=='ringing'||isCallActive) return;
+
+    currentCallId=snap.key;
+    callRef=db.ref('shadowlink/calls/'+currentCallId);
+    callType=call.type||'video'; isCaller=false;
+    showIncomingCall(call.callerName||call.callerId, callType);
+  });
+}
+
+function showIncomingCall(callerName, type){
+  el('incomingAvatar').textContent=initials(callerName);
+  el('incomingName').textContent=callerName.toUpperCase();
+  el('incomingType').textContent='INCOMING '+(type==='video'?'VIDEO':'VOICE')+' CALL · SHADOW PROTOCOL';
+  el('incomingOverlay').classList.add('active');
+  playRing(true);
+}
+
+function declineCall(){
+  el('incomingOverlay').classList.remove('active');playRing(false);
+  if(callRef)callRef.child('status').set('declined');
+  callRef=null;currentCallId=null;
+}
+
+async function acceptCall(){
+  el('incomingOverlay').classList.remove('active');playRing(false);
+  if(!callRef) return;
+
+  const callerName=el('incomingName').textContent;
+  try{
+    localStream=await navigator.mediaDevices.getUserMedia({video:callType==='video',audio:true});
+  }catch(e){showToast('MIC/CAMERA ACCESS DENIED');return;}
+
+  openCallModal(callType,callerName,initials(callerName),'#7c3aed,#4c1d95');
+  if(callType==='video') el('localVideo').srcObject=localStream;
+
+  peerConn=new RTCPeerConnection(ICE_SERVERS);
+  localStream.getTracks().forEach(t=>peerConn.addTrack(t,localStream));
+
+  remoteStream=new MediaStream();
+  peerConn.ontrack=ev=>{
+    ev.streams[0].getTracks().forEach(t=>remoteStream.addTrack(t));
+    if(callType==='video'){el('remoteVideo').srcObject=remoteStream;el('remoteAvatar').style.display='none';}
+    else{const a=new Audio();a.srcObject=remoteStream;a.play();el('remoteAudioStatus').textContent='CONNECTED';el('remoteAudioAv').classList.add('speaking');}
+    setCallStatus('LIVE');startCallTimer();
+  };
+
+  peerConn.onicecandidate=ev=>{if(ev.candidate)callRef.child('calleeCandidates').push(ev.candidate.toJSON());};
+
+  const offerSnap=await callRef.child('offer').once('value');
+  const offer=offerSnap.val();
+  await peerConn.setRemoteDescription(new RTCSessionDescription(offer));
+  const answer=await peerConn.createAnswer();
+  await peerConn.setLocalDescription(answer);
+  callRef.child('answer').set({type:answer.type,sdp:answer.sdp});
+
+  callRef.child('callerCandidates').on('child_added',async snap=>{
+    const c=snap.val();if(c&&peerConn)await peerConn.addIceCandidate(new RTCIceCandidate(c));
+  });
+  callRef.child('status').set('active');
+  callRef.child('status').on('value',snap=>{if(snap.val()==='ended'&&isCallActive)hangUp(true);});
+}
+
+function hangUp(remote=false){
+  if(!isCallActive&&!peerConn) return;
+  isCallActive=false;
+  clearInterval(timerInterval);playRing(false);
+  if(peerConn){peerConn.close();peerConn=null;}
+  if(localStream){localStream.getTracks().forEach(t=>t.stop());localStream=null;}
+  el('localVideo').srcObject=null;el('remoteVideo').srcObject=null;
+  el('remoteAvatar').style.display='';
+  if(callRef&&!remote){
+    callRef.child('status').set('ended');
+    setTimeout(()=>{if(callRef)callRef.remove();callRef=null;},10000);
+  }
+  el('callModal').classList.remove('active');
+
+  const elapsed=formatTime(seconds);
+  // Log call in chat
+  const path = activeChannel==='group'
+    ? 'shadowlink/messages/group'
+    : activeDMTarget ? 'shadowlink/messages/dm_'+[myUser.shadowId,activeDMTarget.shadowId].sort().join('_')
+    : 'shadowlink/messages/group';
+  if(db&&myUser){
+    db.ref(path).push({type:'call',callType,duration:elapsed,senderId:myUser.shadowId,senderName:myUser.codename,timeStr:ts(),ts:firebase.database.ServerValue.TIMESTAMP});
+  }
+  showToast('CALL ENDED · '+elapsed);
+  seconds=0;micMuted=false;camOff=false;speakerMuted=false;
+  el('btnMic').classList.add('active');el('btnCam').classList.add('active');
+  el('mutedBadge').style.display='none';
+}
+
+function openCallModal(type,name,inits,gradient){
+  isCallActive=true;callType=type;
+  el('callModalTitle').textContent=type==='video'?'SHADOW VIDEO':'SHADOW VOICE';
+  el('callModalName').textContent=name;
+  el('videoGrid').style.display=type==='video'?'grid':'none';
+  el('audioGrid').style.display=type==='audio'?'flex':'none';
+  el('btnCam').style.display=type==='video'?'':'none';
+  el('remoteAvatar').textContent=inits;
+  el('remoteAvatar').style.background=`linear-gradient(135deg,${gradient})`;
+  el('remoteAudioAv').textContent=inits;
+  el('remoteAudioAv').style.background=`linear-gradient(135deg,${gradient})`;
+  el('remoteName').textContent=name;
+  el('remoteAudioName').textContent=name;
+  el('remoteAudioStatus').textContent='CONNECTING...';
+  setCallStatus('CONNECTING',true);
+  el('callModal').classList.add('active');
+}
+
+function setCallStatus(text,connecting=false){
+  const b=el('callStatusBadge');b.textContent=text;
+  connecting?b.classList.add('call-status-connecting'):b.classList.remove('call-status-connecting');
+}
+
+function handleModalClick(e){if(e.target===e.currentTarget)showToast('CLICK END CALL TO HANG UP');}
+
+function startCallTimer(){
+  seconds=0;clearInterval(timerInterval);
+  timerInterval=setInterval(()=>{seconds++;el('callTimer').textContent=formatTime(seconds);},1000);
+}
+
+function toggleMic(){
+  micMuted=!micMuted;
+  if(localStream)localStream.getAudioTracks().forEach(t=>t.enabled=!micMuted);
+  micMuted?el('btnMic').classList.remove('active'):el('btnMic').classList.add('active');
+  el('mutedBadge').style.display=micMuted?'flex':'none';
+  el('localAudioStatus').textContent=micMuted?'MUTED':'LIVE';
+  showToast('MIC · '+(micMuted?'MUTED':'LIVE'));
+}
+function toggleCamera(){
+  camOff=!camOff;
+  if(localStream)localStream.getVideoTracks().forEach(t=>t.enabled=!camOff);
+  camOff?el('btnCam').classList.remove('active'):el('btnCam').classList.add('active');
+  el('localVideo').style.display=camOff?'none':'';
+  showToast('CAMERA · '+(camOff?'OFF':'ON'));
+}
+function toggleSpeaker(){
+  speakerMuted=!speakerMuted;
+  const rv=el('remoteVideo');
+  if(rv.srcObject)rv.muted=speakerMuted;
+  speakerMuted?el('btnSpeaker').classList.remove('active'):el('btnSpeaker').classList.add('active');
+  showToast('SPEAKER · '+(speakerMuted?'MUTED':'ON'));
+}
+
+// ── RING TONE ──
+let ringCtx=null,ringInt=null;
+function playRing(start){
+  if(!start){clearInterval(ringInt);ringInt=null;if(ringCtx){ringCtx.close();ringCtx=null;}return;}
+  try{
+    ringCtx=new (window.AudioContext||window.webkitAudioContext)();
+    const ring=()=>{
+      if(!ringCtx)return;
+      const o=ringCtx.createOscillator(),g=ringCtx.createGain();
+      o.connect(g);g.connect(ringCtx.destination);
+      o.frequency.value=660;o.type='sine';
+      g.gain.setValueAtTime(0.25,ringCtx.currentTime);
+      g.gain.exponentialRampToValueAtTime(0.001,ringCtx.currentTime+0.4);
+      o.start();o.stop(ringCtx.currentTime+0.4);
+    };
+    ring();ringInt=setInterval(ring,1200);
+  }catch(e){}
+}
+
+// ══════════════════════════════════════════════════════════════════
+// INIT
+// ══════════════════════════════════════════════════════════════════
+// App starts at setup overlay — no auto-init, all in-memory
+</script>
+</body>
+</html>
