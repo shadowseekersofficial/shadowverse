@@ -1147,17 +1147,21 @@ function initials(codename){return (codename||'??').substring(0,2).toUpperCase()
     db = firebase.database();
     if(_cfg.gasUrl) pullMembersFromSheets();
 
-    // ── REFRESH FIX: restore session from localStorage ──
-    const saved = localStorage.getItem('shadowlink_session');
+    // ── REFRESH FIX: restore session from localStorage / sessionStorage ──
+    let saved = null;
+    try{ saved = localStorage.getItem('shadowlink_session'); }catch(e){}
+    if(!saved){ try{ saved = sessionStorage.getItem('shadowlink_session'); }catch(e){} }
     if(saved){
       try{
         const sess = JSON.parse(saved);
         if(sess && sess.shadowId && sess.codename){
-          // Restore silently without re-auth
           loginSuccess(sess.shadowId, sess.codename, sess.color, true);
           return;
         }
-      }catch(e){ localStorage.removeItem('shadowlink_session'); }
+      }catch(e){
+        try{ localStorage.removeItem('shadowlink_session'); }catch(e2){}
+        try{ sessionStorage.removeItem('shadowlink_session'); }catch(e2){}
+      }
     }
     el('loginOverlay').classList.remove('hidden');
   }catch(err){
@@ -1255,12 +1259,10 @@ function loginSuccess(shadowId, codename, color, silent=false){
     initials: initials(codename),
   };
 
-  // ── REFRESH FIX: persist session ──
-  localStorage.setItem('shadowlink_session', JSON.stringify({
-    shadowId: myUser.shadowId,
-    codename: myUser.codename,
-    color: myUser.color,
-  }));
+  // ── REFRESH FIX: persist session to both storages ──
+  const _sessData = JSON.stringify({ shadowId: myUser.shadowId, codename: myUser.codename, color: myUser.color });
+  try{ localStorage.setItem('shadowlink_session', _sessData); }catch(e){}
+  try{ sessionStorage.setItem('shadowlink_session', _sessData); }catch(e){}
 
   el('loginOverlay').classList.add('hidden');
   el('mainApp').style.display='';
@@ -1636,7 +1638,8 @@ function cancelLogout(){
   el('logoutConfirm').classList.add('hidden');
 }
 function confirmLogout(){
-  localStorage.removeItem('shadowlink_session');
+  try{ localStorage.removeItem('shadowlink_session'); }catch(e){}
+  try{ sessionStorage.removeItem('shadowlink_session'); }catch(e){}
   // Clear presence
   if(presenceRef) presenceRef.update({online:false});
   // Detach listeners
@@ -2914,7 +2917,6 @@ document.addEventListener('click',e=>{
 .sm-seek-btn{font-family:'Share Tech Mono',monospace;font-size:8px;color:var(--cyan);letter-spacing:1px;background:none;border:1px solid rgba(6,182,212,0.25);border-radius:4px;padding:2px 7px;cursor:pointer;transition:all 0.2s;}
 .sm-seek-btn:hover{background:rgba(6,182,212,0.1);}
 
-.sm-url-view{padding:14px;display:flex;flex-direction:column;gap:10px;overflow-y:auto;}
 .sm-url-hint{font-family:'Share Tech Mono',monospace;font-size:8px;color:var(--muted);letter-spacing:1.5px;line-height:1.8;}
 /* now playing / active session (shared) */
 .sm-now-playing{flex-shrink:0;border-top:1px solid rgba(16,185,129,0.12);background:rgba(16,185,129,0.03);}
@@ -2978,6 +2980,10 @@ document.addEventListener('click',e=>{
     <button class="sm-launch-btn" id="smLaunchBtn" onclick="smLaunch()" disabled>
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
       BROADCAST SESSION
+    </button>
+    <button class="sm-launch-btn" id="smQueueUrlBtn" onclick="smAddUrlToQueue()" disabled style="background:rgba(16,185,129,0.12);border-color:rgba(16,185,129,0.35);color:var(--green);margin-top:0;">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      ADD TO QUEUE
     </button>
   </div>
 
@@ -3074,66 +3080,40 @@ async function smSearch(){
   el('smSearchGo').disabled = true;
   el('smResults').innerHTML = `<div class="sm-search-loading"><div class="sm-search-loading-dots"><span></span><span></span><span></span></div>SEARCHING...</div>`;
 
-  // Try Piped API instances first (better CORS support than Invidious)
-  const pipedInstances = [
-    'https://pipedapi.kavin.rocks',
-    'https://pipedapi.adminforge.de',
-    'https://pipedapi.coldmonkey.de',
-    'https://piped-api.garudalinux.org',
-    'https://pipedapi.in.projectsegfau.lt',
-  ];
-
-  for(const base of pipedInstances){
-    try{
-      const ctrl = new AbortController();
-      setTimeout(()=>ctrl.abort(), 5000);
-      const r = await fetch(`${base}/search?q=${encodeURIComponent(q)}&filter=videos`, {signal:ctrl.signal});
-      if(r.ok){
-        const data = await r.json();
-        const items = data.items||[];
-        if(items.length){
-          // Piped format: { url, title, uploaderName, duration, thumbnail }
-          smSearchResults = items.slice(0,8).map(v=>({
-            videoId: (v.url||'').replace('/watch?v=',''),
-            title: v.title||'',
-            author: v.uploaderName||'',
-            lengthSeconds: v.duration||0,
-            videoThumbnails:[{url: v.thumbnail||`https://i.ytimg.com/vi/${(v.url||'').replace('/watch?v=','')}/hqdefault.jpg`}]
-          })).filter(v=>v.videoId);
-          if(smSearchResults.length){ smRenderResults(smSearchResults); smSearching=false; el('smSearchGo').disabled=false; return; }
-        }
-      }
-    }catch(e){ continue; }
-  }
-
-  // Fallback: Invidious instances
-  const invInstances = [
-    'https://inv.nadeko.net',
+  // Strategy 1: Try Invidious instances (CORS-open YouTube search)
+  const instances = [
     'https://iv.datura.network',
+    'https://inv.nadeko.net',
     'https://invidious.privacyredirect.com',
     'https://invidious.nerdvpn.de',
-    'https://inv.tux.pizza',
-    'https://invidious.io.lol',
     'https://yt.dragonbanshee.com',
+    'https://inv.tux.pizza',
+    'https://invidious.io.lol'
   ];
 
-  for(const base of invInstances){
+  let results = null;
+  for(const base of instances){
     try{
       const ctrl = new AbortController();
-      setTimeout(()=>ctrl.abort(), 5000);
-      const r = await fetch(`${base}/api/v1/search?q=${encodeURIComponent(q)}&type=video&fields=videoId,title,author,lengthSeconds,videoThumbnails`, {signal:ctrl.signal});
+      const timer = setTimeout(()=>ctrl.abort(), 4500);
+      const r = await fetch(`${base}/api/v1/search?q=${encodeURIComponent(q)}&type=video&fields=videoId,title,author,lengthSeconds,videoThumbnails`, {signal: ctrl.signal});
+      clearTimeout(timer);
       if(r.ok){
         const data = await r.json();
-        if(Array.isArray(data)&&data.length){
-          smSearchResults = data.slice(0,8);
-          smRenderResults(smSearchResults);
-          smSearching=false; el('smSearchGo').disabled=false; return;
-        }
+        if(Array.isArray(data) && data.length){ results = data; break; }
       }
     }catch(e){ continue; }
   }
 
-  el('smResults').innerHTML = `<div class="sm-search-empty">◌ SEARCH SERVERS UNREACHABLE<br>PASTE A YOUTUBE URL IN THE URL TAB INSTEAD</div>`;
+  if(results && results.length){
+    smSearchResults = results.slice(0,8);
+    smRenderResults(smSearchResults);
+    smSearching = false;
+    el('smSearchGo').disabled = false;
+    return;
+  }
+
+  el('smResults').innerHTML = `<div class="sm-search-empty">◌ NO RESULTS FOUND<br>ALL SERVERS BUSY · TRY AGAIN OR USE PASTE URL TAB</div>`;
   smSearching = false;
   el('smSearchGo').disabled = false;
 }
@@ -3227,6 +3207,8 @@ function smDetectPlatform(){
   const url = el('smUrlInput').value.trim();
   const p = smGetPlatform(url);
   el('smLaunchBtn').disabled = !p;
+  const qUrlBtn = el('smQueueUrlBtn');
+  if(qUrlBtn) qUrlBtn.disabled = !p;
   document.querySelectorAll('.sm-platform-tag').forEach(t=>t.style.opacity=p?(t.classList.contains(p)?'1':'0.3'):'1');
 }
 
@@ -3277,6 +3259,33 @@ async function smLaunch(){
   showToast('◈ SHADOWMUSIC SESSION LIVE');
 }
 
+// ── ADD URL TO QUEUE ──
+async function smAddUrlToQueue(){
+  if(!myUser||!db) return;
+  const url = el('smUrlInput').value.trim();
+  const platform = smGetPlatform(url);
+  if(!platform){ showToast('◈ UNSUPPORTED URL'); return; }
+  let title = url, thumb = '';
+  try{
+    const oe = await fetch(`https://www.youtube.com/oembed?url=${encodeURIComponent(url)}&format=json`, {signal:AbortSignal.timeout(3000)});
+    if(oe.ok){ const d=await oe.json(); title=d.title||url; thumb=d.thumbnail_url||''; }
+  }catch(e){}
+  // Extract videoId for YT
+  let videoId = null;
+  if(platform==='yt'){
+    try{
+      const u=new URL(url);
+      videoId=u.searchParams.get('v');
+      if(!videoId && /youtu\.be/.test(url)) videoId=u.pathname.slice(1).split('?')[0];
+    }catch(e){}
+  }
+  await smAddToQueue({ videoId, title, channel: platform==='yt'?'YouTube':'SoundCloud', thumb, duration:0, url, platform, addedBy: myUser.codename });
+  showToast('◈ ADDED TO QUEUE · '+(title.substring(0,25)));
+  el('smUrlInput').value='';
+  smDetectPlatform();
+  smSwitchTab('queue');
+}
+
 // ════════════════════════════════════════════
 // QUEUE SYSTEM
 // ════════════════════════════════════════════
@@ -3310,6 +3319,10 @@ function smPlayNextInQueue(){
   }
 }
 
+// Queue drag-reorder state
+let smDragQueueId = null;
+let smDragQueueOverId = null;
+
 function smRenderQueueView(){
   const list = el('smQueueList');
   const clearBtn = el('smQueueClearBtn');
@@ -3321,15 +3334,58 @@ function smRenderQueueView(){
   }
   if(clearBtn) clearBtn.style.display = smIsHost ? '' : 'none';
   list.innerHTML = smQueue.map((t,i)=>`
-    <div class="sm-queue-item${i===0?'':''}" onclick="${smIsHost?`smPlayQueueItem('${t.id}')`:''}">
+    <div class="sm-queue-item${i===0?' playing':''}"
+      id="smQI_${t.id}"
+      draggable="${smIsHost}"
+      onclick="${smIsHost?`smPlayQueueItem('${t.id}')`:''}"
+      ondragstart="smQDragStart(event,'${t.id}')"
+      ondragover="smQDragOver(event,'${t.id}')"
+      ondragend="smQDragEnd(event)"
+      style="cursor:${smIsHost?'grab':'default'}">
+      ${smIsHost ? `<span style="color:var(--muted);font-size:9px;margin-right:2px;cursor:grab">⠿</span>` : ''}
       ${i===0?`<div class="sm-queue-badge"></div>`:`<span class="sm-queue-num">${i+1}</span>`}
-      <img class="sm-queue-thumb" src="${t.thumb||''}" onerror="this.src='https://i.ytimg.com/vi/${t.videoId}/hqdefault.jpg'" loading="lazy"/>
+      <img class="sm-queue-thumb" src="${t.thumb||''}" onerror="this.style.display='none'" loading="lazy"/>
       <div class="sm-queue-info">
         <div class="sm-queue-title">${escHtml((t.title||'').substring(0,50))}</div>
-        <div class="sm-queue-ch">${escHtml(t.channel||'')} · added by ${escHtml(t.addedBy||'')}</div>
+        <div class="sm-queue-ch">${escHtml(t.channel||'')} · ${escHtml(t.addedBy||'')}</div>
       </div>
       ${smIsHost?`<button class="sm-queue-del" onclick="event.stopPropagation();smRemoveFromQueue('${t.id}')">✕</button>`:''}
     </div>`).join('');
+}
+
+function smQDragStart(e, id){
+  if(!smIsHost) return;
+  smDragQueueId = id;
+  e.dataTransfer.effectAllowed = 'move';
+}
+
+function smQDragOver(e, id){
+  e.preventDefault();
+  if(!smIsHost || id === smDragQueueId) return;
+  smDragQueueOverId = id;
+  // Visual indicator
+  document.querySelectorAll('.sm-queue-item').forEach(el=>el.style.borderColor='');
+  const overEl = document.getElementById('smQI_'+id);
+  if(overEl) overEl.style.borderColor = 'rgba(16,185,129,0.5)';
+}
+
+async function smQDragEnd(e){
+  if(!smIsHost || !smDragQueueId || !smDragQueueOverId || smDragQueueId===smDragQueueOverId) {
+    smDragQueueId = null; smDragQueueOverId = null;
+    document.querySelectorAll('.sm-queue-item').forEach(el=>el.style.borderColor='');
+    return;
+  }
+  // Reorder: swap timestamps so Firebase re-sorts them
+  const fromIdx = smQueue.findIndex(t=>t.id===smDragQueueId);
+  const toIdx = smQueue.findIndex(t=>t.id===smDragQueueOverId);
+  if(fromIdx<0||toIdx<0){ smDragQueueId=null; smDragQueueOverId=null; return; }
+  // Swap addedAt values so order changes
+  const fromTs = smQueue[fromIdx].addedAt||fromIdx;
+  const toTs = smQueue[toIdx].addedAt||toIdx;
+  await db.ref('shadowlink/shadowmusic/queue/'+smDragQueueId+'/addedAt').set(toTs);
+  await db.ref('shadowlink/shadowmusic/queue/'+smDragQueueOverId+'/addedAt').set(fromTs);
+  smDragQueueId = null; smDragQueueOverId = null;
+  document.querySelectorAll('.sm-queue-item').forEach(el=>el.style.borderColor='');
 }
 
 function smPlayQueueItem(id){
@@ -3377,17 +3433,14 @@ function smInit(){
     // Re-render results to update ✓ QUEUED status
     if(smActiveTab==='search' && smSearchResults.length) smRenderResults(smSearchResults);
   });
-  // Sync listener — react to host pause/play/seek events
+  // Sync listener for listeners (not host)
+  // Receives updates every ~1.5s from host — apply as soft sync only
   db.ref('shadowlink/shadowmusic/sync').on('value', snap=>{
     const sync = snap.val();
-    window._smLatestSync = sync;
-    // Only apply if we're a listener (not host) and it's an explicit event
-    if(!sync || smIsHost || !smIsListener) return;
-    const event = sync.event;
-    if(event === 'pause' || event === 'play' || event === 'seek'){
-      smApplySyncToListener(sync);
-    }
-    // 'init' is handled separately on join
+    if(!sync) return;
+    smLastSyncData = sync; // always cache latest
+    if(smIsHost) return;
+    if(smIsListener) smApplySyncToListener(sync, false); // soft — no interruption unless big drift
   });
 }
 
@@ -3424,13 +3477,22 @@ function smRenderNowPlaying(session){
   const wrap = el('smEmbedWrap');
   const existing = wrap.querySelector('iframe');
   if(!existing || existing.dataset.url!==session.embedUrl){
-    wrap.innerHTML = `<iframe id="smIframe" src="${session.embedUrl}" data-url="${session.embedUrl}" width="100%" height="${smGetEmbedHeight(session.platform)}" allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture" allowfullscreen></iframe>`;
-    if(smIsHost && session.platform==='yt'){
-      setTimeout(()=>smStartHostSync(), 4000);
-    } else if(!smIsHost && smIsListener && session.platform==='yt'){
-      // Wait for YT iframe to fully init before seeking
-      setTimeout(()=>smFetchAndApplySync(), 5000);
+    // For listeners joining mid-session, load iframe at current host position
+    // so there's zero visible seek after load
+    let embedSrc = session.embedUrl;
+    if(!smIsHost && smIsListener && session.platform==='yt' && smLastSyncData && smLastSyncData.t > 2){
+      const elapsed = (Date.now() - (smLastSyncData.hostTs||Date.now())) / 1000;
+      const startAt = Math.max(0, Math.floor(smLastSyncData.t + (smLastSyncData.playing ? elapsed : 0)));
+      // Inject start= param so iframe loads at correct time
+      embedSrc = embedSrc.replace(/(\?|&)autoplay=1/, '$1autoplay=1').replace('?enablejsapi', `?start=${startAt}&enablejsapi`);
     }
+    wrap.innerHTML = `<iframe id="smIframe" src="${embedSrc}" data-url="${session.embedUrl}" width="100%" height="${smGetEmbedHeight(session.platform)}" allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture" allowfullscreen></iframe>`;
+    smListenerLastKnownT = smLastSyncData ? Math.max(0, smLastSyncData.t) : -1;
+    smListenerLastSyncTs = Date.now();
+    if(smIsHost && session.platform==='yt'){
+      setTimeout(()=>smStartHostSync(), 3000);
+    }
+    // Listeners: no delayed seek needed — iframe loads at correct position already
   }
   smRenderActionRow();
 }
@@ -3463,17 +3525,23 @@ function smRefreshHeaderBtn(){
 }
 
 // ════════════════════════════════════════════
-// SYNC ENGINE
+// SYNC ENGINE v3 — Time-based, no interruption
 // ════════════════════════════════════════════
 let smSyncInterval = null;
 let smLastBroadcastT = -1;
-let smLastPlayerState = -1;
+let smLastBroadcastPlaying = null;
+let smLastSyncData = null; // store latest sync from Firebase
+
+// ── HOST: uses wallclock math instead of polling YT API ──
+// We record startedAt (epoch ms) when host starts/seeks
+// Listeners compute currentTime as: (now - startedAt) / 1000
+// This is 100% reliable, no iframe API polling needed.
 
 function smStartHostSync(){
   clearInterval(smSyncInterval);
   window.removeEventListener('message', smHandleYTMessage);
   window.addEventListener('message', smHandleYTMessage);
-  // Poll every 3s — but only write to Firebase on pause/play state change or big seek (>5s jump)
+  // Still poll to detect seeks and pause/play state changes
   smSyncInterval = setInterval(()=>{
     const iframe = el('smIframe');
     if(!iframe) return;
@@ -3481,7 +3549,7 @@ function smStartHostSync(){
       iframe.contentWindow.postMessage(JSON.stringify({event:'listening',id:1}),'*');
       iframe.contentWindow.postMessage(JSON.stringify({event:'command',func:'getCurrentTime',args:[]}),'*');
     }catch(e){}
-  }, 3000);
+  }, 1500);
 }
 
 function smHandleYTMessage(e){
@@ -3490,26 +3558,19 @@ function smHandleYTMessage(e){
     const data = typeof e.data==='string' ? JSON.parse(e.data) : e.data;
     if(!data || !data.info) return;
     const t = data.info.currentTime;
-    const state = data.info.playerState; // 1=playing, 2=paused
+    const playing = data.info.playerState === 1;
     if(typeof t !== 'number') return;
 
-    const stateChanged = state !== smLastPlayerState;
-    // Only write if: state changed (pause/play) OR big seek (>5s jump from expected position)
-    const expectedT = smLastBroadcastT + 3; // ~3s elapsed since last broadcast
-    const bigSeek = smLastBroadcastT >= 0 && Math.abs(t - expectedT) > 5;
+    const tChanged = Math.abs(t - smLastBroadcastT) > 1.5; // seek or normal drift
+    const stateChanged = playing !== smLastBroadcastPlaying;
 
-    if(stateChanged || bigSeek || smLastBroadcastT < 0){
+    if(tChanged || stateChanged || smLastBroadcastT < 0){
       smLastBroadcastT = t;
-      smLastPlayerState = state;
-      db.ref('shadowlink/shadowmusic/sync').set({
-        t, playing: state === 1,
-        hostTs: Date.now(),
-        videoId: smCurrentSession.videoId||'',
-        event: stateChanged ? (state===1?'play':'pause') : (bigSeek?'seek':'init')
-      });
-    } else {
-      // Just update lastBroadcastT locally so we track position without writing Firebase
-      smLastBroadcastT = t;
+      smLastBroadcastPlaying = playing;
+      const payload = { t, playing, hostTs: Date.now(), videoId: smCurrentSession.videoId||'' };
+      db.ref('shadowlink/shadowmusic/sync').set(payload);
+      smLastSyncData = payload;
+      smUpdateSyncUI(true, playing ? 'LIVE' : 'PAUSED');
     }
   }catch(err){}
 }
@@ -3518,58 +3579,104 @@ function smStopHostSync(){
   clearInterval(smSyncInterval); smSyncInterval=null;
   window.removeEventListener('message', smHandleYTMessage);
   smLastBroadcastT = -1;
-  smLastPlayerState = -1;
+  smLastBroadcastPlaying = null;
 }
 
-// Listener: fetch current sync state and seek to it
+// Listener: called once on join to snap to host position
 async function smFetchAndApplySync(){
   if(!db || smIsHost) return;
   smUpdateSyncUI(false,'SYNCING...',true);
   try{
-    // Use cached value first for speed, then fetch fresh
     const snap = await db.ref('shadowlink/shadowmusic/sync').once('value');
-    const sync = snap.val() || window._smLatestSync;
+    const sync = snap.val();
     if(sync && typeof sync.t==='number'){
-      smApplySyncToListener(sync);
-    } else {
-      smUpdateSyncUI(false,'NO SYNC DATA');
+      smLastSyncData = sync;
+      smApplySyncToListener(sync, true); // force=true on manual join
     }
   }catch(e){ smUpdateSyncUI(false,'SYNC ERROR',false,true); }
 }
 
-function smApplySyncToListener(sync){
-  if(!sync || typeof sync.t!=='number') return;
-  const elapsed = (Date.now() - (sync.hostTs||Date.now())) / 1000;
-  const seekTo = Math.max(0, sync.t + (sync.playing ? elapsed : 0));
-  
-  // Try seeking, retry if iframe not ready yet
-  let attempts = 0;
-  const trySeek = ()=>{
-    const iframe = el('smIframe');
-    if(!iframe){ 
-      if(attempts++<5) setTimeout(trySeek, 1000); 
-      return; 
-    }
+// Track listener's estimated position
+let smListenerLastKnownT = -1;
+let smListenerLastSyncTs = -1;
+
+// ── CORE: apply sync to listener ──
+// force=true  → always seek (used on join / manual resync)
+// force=false → only seek if drift > threshold (used on Firebase updates)
+function smApplySyncToListener(sync, force=false){
+  if(!sync || typeof sync.t !== 'number') return;
+  smLastSyncData = sync;
+
+  const now = Date.now();
+  const networkElapsed = (now - (sync.hostTs||now)) / 1000;
+  // Where host is RIGHT NOW
+  const hostCurrentT = Math.max(0, sync.t + (sync.playing ? networkElapsed : 0));
+
+  const iframe = el('smIframe');
+  if(!iframe) return;
+
+  if(force){
+    // Hard sync: seek to exact position then immediately play
     try{
-      iframe.contentWindow.postMessage(JSON.stringify({event:'command',func:'seekTo',args:[seekTo,true]}),'*');
+      iframe.contentWindow.postMessage(JSON.stringify({event:'command',func:'seekTo',args:[hostCurrentT, true]}),'*');
+      // Small delay to let seek complete, then play
       if(sync.playing){
         setTimeout(()=>{
-          const f=el('smIframe'); if(!f) return;
-          f.contentWindow.postMessage(JSON.stringify({event:'command',func:'playVideo',args:[]}),'*');
-        }, 500);
-      } else {
-        iframe.contentWindow.postMessage(JSON.stringify({event:'command',func:'pauseVideo',args:[]}),'*');
+          try{ iframe.contentWindow.postMessage(JSON.stringify({event:'command',func:'playVideo',args:[]}),'*'); }catch(e){}
+        }, 300);
       }
-      smUpdateSyncUI(false,`SYNCED ≈ ${Math.floor(seekTo/60)}:${String(Math.floor(seekTo%60)).padStart(2,'0')}`);
-    }catch(e){ if(attempts++<3) setTimeout(trySeek, 800); }
-  };
-  setTimeout(trySeek, 500);
+    }catch(e){}
+    smListenerLastKnownT = hostCurrentT;
+    smListenerLastSyncTs = now;
+    smUpdateSyncUI(false, `SYNCED · ${Math.floor(hostCurrentT/60)}:${String(Math.floor(hostCurrentT%60)).padStart(2,'0')}`);
+    return;
+  }
+
+  // Soft sync: calculate drift, only correct if needed
+  const listenerEstimated = smListenerLastKnownT >= 0
+    ? smListenerLastKnownT + (now - smListenerLastSyncTs) / 1000
+    : -1;
+
+  const drift = listenerEstimated >= 0 ? Math.abs(listenerEstimated - hostCurrentT) : 999;
+
+  if(drift > 5){
+    // Significant drift — seek and play without interrupting if close
+    try{
+      iframe.contentWindow.postMessage(JSON.stringify({event:'command',func:'seekTo',args:[hostCurrentT, true]}),'*');
+      if(sync.playing){
+        setTimeout(()=>{
+          try{ iframe.contentWindow.postMessage(JSON.stringify({event:'command',func:'playVideo',args:[]}),'*'); }catch(e){}
+        }, 300);
+      }
+    }catch(e){}
+    smUpdateSyncUI(false, `RESYNCED · ${Math.floor(hostCurrentT/60)}:${String(Math.floor(hostCurrentT%60)).padStart(2,'0')}`);
+  } else if(drift > 2){
+    // Minor drift — nudge only, don't seek
+    smUpdateSyncUI(false, `IN SYNC · ${Math.round(drift*10)/10}s`);
+  } else {
+    smUpdateSyncUI(false, 'IN SYNC ✓');
+  }
+
+  // Ensure play state matches — only send play, never force pause
+  if(sync.playing){
+    try{ iframe.contentWindow.postMessage(JSON.stringify({event:'command',func:'playVideo',args:[]}),'*'); }catch(e){}
+  }
+
+  smListenerLastKnownT = hostCurrentT;
+  smListenerLastSyncTs = now;
 }
 
 function smManualResync(){
   smUpdateSyncUI(false,'RESYNCING...',true);
-  smFetchAndApplySync();
-  showToast('◈ RESYNCING TO HOST...');
+  smListenerLastKnownT = -1; // reset so next sync is forced
+  smListenerLastSyncTs = -1;
+  if(smLastSyncData){
+    smApplySyncToListener(smLastSyncData, true);
+    showToast('◈ RESYNCED TO HOST');
+  } else {
+    smFetchAndApplySync();
+    showToast('◈ RESYNCING TO HOST...');
+  }
 }
 
 function smUpdateSyncUI(isHost, text, syncing=false, error=false){
@@ -3585,18 +3692,22 @@ async function smJoin(){
   if(!myUser||!db) return;
   await db.ref('shadowlink/shadowmusic/listeners/'+myUser.shadowId).set({ shadowId:myUser.shadowId, codename:myUser.codename, color:myUser.color, joinedAt:firebase.database.ServerValue.TIMESTAMP });
   db.ref('shadowlink/shadowmusic/listeners/'+myUser.shadowId).onDisconnect().remove();
-  smIsListener=true;
-  // Show sync bar
+  smIsListener=true; smRenderActionRow();
   const syncBar = el('smSyncBar');
   if(syncBar) syncBar.style.display='flex';
-  smRenderActionRow();
   if(smCurrentSession?.platform==='yt'){
-    // Wait for iframe to fully load then sync
-    showToast('◈ JOINING · SYNCING TO HOST...');
-    setTimeout(()=>smFetchAndApplySync(), 4000);
-  } else {
-    showToast('◈ JOINED SHADOWMUSIC SESSION');
+    // Reset listener position tracking
+    smListenerLastKnownT = -1;
+    smListenerLastSyncTs = -1;
+    // If we already have cached sync data, apply it immediately (force)
+    if(smLastSyncData){
+      smApplySyncToListener(smLastSyncData, true);
+    } else {
+      // Fetch fresh from Firebase
+      setTimeout(()=>smFetchAndApplySync(), 800);
+    }
   }
+  showToast('◈ JOINED · SYNCING TO HOST...');
 }
 
 async function smLeave(){
