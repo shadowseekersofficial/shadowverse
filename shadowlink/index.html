@@ -3172,7 +3172,7 @@ async function smAddToQueueFromIdx(i){
 
 async function smPlayFromSearch(videoId, title, channel, thumb, duration){
   if(!myUser || !db) return;
-  const embedUrl = `https://www.youtube-nocookie.com/embed/${videoId}?enablejsapi=1&autoplay=1&origin=${encodeURIComponent(location.origin||'https://shadowlink.local')}`;
+  const embedUrl = `${smGetInvidiousBase()}/embed/${videoId}?autoplay=1&listen=0`;
   const now = Date.now();
   const session = {
     videoId, title, channel, thumb,
@@ -3212,6 +3212,28 @@ function smDetectPlatform(){
   document.querySelectorAll('.sm-platform-tag').forEach(t=>t.style.opacity=p?(t.classList.contains(p)?'1':'0.3'):'1');
 }
 
+// Invidious instances for ad-free YT embed
+// Falls back down the list if one fails
+const SM_INVIDIOUS = [
+  'https://iv.datura.network',
+  'https://inv.nadeko.net',
+  'https://invidious.privacyredirect.com',
+  'https://invidious.nerdvpn.de',
+  'https://inv.tux.pizza',
+];
+let smInvidiousIdx = 0;
+
+function smGetInvidiousBase(){ return SM_INVIDIOUS[smInvidiousIdx % SM_INVIDIOUS.length]; }
+
+function smExtractYtId(url){
+  try{
+    const u = new URL(url);
+    let id = u.searchParams.get('v');
+    if(!id && /youtu\.be/.test(url)) id = u.pathname.slice(1).split('?')[0];
+    return id || null;
+  }catch(e){ return null; }
+}
+
 function smGetEmbedUrl(url, platform){
   if(platform==='yt'){
     let videoId=null, listId=null;
@@ -3221,8 +3243,10 @@ function smGetEmbedUrl(url, platform){
       listId=u.searchParams.get('list');
       if(!videoId && /youtu\.be/.test(url)) videoId=u.pathname.slice(1).split('?')[0];
     }catch(e){}
-    if(listId) return `https://www.youtube-nocookie.com/embed/videoseries?list=${listId}&enablejsapi=1&autoplay=1`;
-    if(videoId) return `https://www.youtube-nocookie.com/embed/${videoId}?enablejsapi=1&autoplay=1`;
+    // Use Invidious embed — ad-free, no tracking
+    const base = smGetInvidiousBase();
+    if(listId) return `${base}/embed/videoseries?list=${listId}&autoplay=1`;
+    if(videoId) return `${base}/embed/${videoId}?autoplay=1&listen=0`;
     return null;
   }
   if(platform==='sc'){
@@ -3483,8 +3507,8 @@ function smRenderNowPlaying(session){
     if(!smIsHost && smIsListener && session.platform==='yt' && smLastSyncData && smLastSyncData.t > 2){
       const elapsed = (Date.now() - (smLastSyncData.hostTs||Date.now())) / 1000;
       const startAt = Math.max(0, Math.floor(smLastSyncData.t + (smLastSyncData.playing ? elapsed : 0)));
-      // Inject start= param so iframe loads at correct time
-      embedSrc = embedSrc.replace(/(\?|&)autoplay=1/, '$1autoplay=1').replace('?enablejsapi', `?start=${startAt}&enablejsapi`);
+      // Invidious uses &t= for start position
+      embedSrc = embedSrc + `&t=${startAt}`;
     }
     wrap.innerHTML = `<iframe id="smIframe" src="${embedSrc}" data-url="${session.embedUrl}" width="100%" height="${smGetEmbedHeight(session.platform)}" allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture" allowfullscreen></iframe>`;
     smListenerLastKnownT = smLastSyncData ? Math.max(0, smLastSyncData.t) : -1;
@@ -3503,8 +3527,10 @@ function smRenderActionRow(){
   if(smIsHost){
     const hasQueue = smQueue.length > 0;
     row.innerHTML = `
+      <button class="sm-join-btn" style="padding:0 10px;flex-shrink:0;" onclick="smHostSeek(-10)" title="Back 10s">−10s</button>
+      <button class="sm-join-btn" style="padding:0 10px;flex-shrink:0;" onclick="smHostSeek(10)" title="Forward 10s">+10s</button>
       ${hasQueue?`<button class="sm-join-btn" style="flex:1" onclick="smPlayNextInQueue()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 4 15 12 5 20 5 4"/><line x1="19" y1="4" x2="19" y2="20"/></svg>NEXT</button>`:''}
-      <button class="sm-end-btn" style="${hasQueue?'':'width:100%'}" onclick="smEndSession()">◈ END</button>`;
+      <button class="sm-end-btn" onclick="smEndSession()">◈ END</button>`;
   } else if(smIsListener){
     row.innerHTML = `<button class="sm-join-btn" style="flex:1;opacity:0.5;cursor:default;" disabled><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>LISTENING</button><button class="sm-leave-btn" onclick="smLeave()">LEAVE</button>`;
   } else {
@@ -3537,50 +3563,56 @@ let smLastSyncData = null; // store latest sync from Firebase
 // Listeners compute currentTime as: (now - startedAt) / 1000
 // This is 100% reliable, no iframe API polling needed.
 
+// ── HOST SYNC: wallclock based (works with Invidious — no postMessage API) ──
+// Host broadcasts t=0 at session start with hostTs=now
+// Every 10s rebroadcasts so new joiners can calculate: currentT = (now - hostTs) / 1000
+// When host seeks: user clicks manual seek btn which writes new t+hostTs
+
 function smStartHostSync(){
   clearInterval(smSyncInterval);
-  window.removeEventListener('message', smHandleYTMessage);
-  window.addEventListener('message', smHandleYTMessage);
-  // Still poll to detect seeks and pause/play state changes
+  // Broadcast initial position immediately
+  smBroadcastHostPosition(0, true);
+  // Rebroadcast every 10s (keeps hostTs fresh for new joiners)
   smSyncInterval = setInterval(()=>{
-    const iframe = el('smIframe');
-    if(!iframe) return;
-    try{
-      iframe.contentWindow.postMessage(JSON.stringify({event:'listening',id:1}),'*');
-      iframe.contentWindow.postMessage(JSON.stringify({event:'command',func:'getCurrentTime',args:[]}),'*');
-    }catch(e){}
-  }, 1500);
+    if(!smCurrentSession || !smIsHost) return;
+    // Compute current t from wallclock
+    const elapsed = (Date.now() - (smCurrentSession.startedAt||Date.now())) / 1000;
+    smBroadcastHostPosition(elapsed, true);
+  }, 8000);
+  smUpdateSyncUI(true, 'LIVE');
 }
 
-function smHandleYTMessage(e){
-  if(!smIsHost || !db || !smCurrentSession) return;
-  try{
-    const data = typeof e.data==='string' ? JSON.parse(e.data) : e.data;
-    if(!data || !data.info) return;
-    const t = data.info.currentTime;
-    const playing = data.info.playerState === 1;
-    if(typeof t !== 'number') return;
+function smBroadcastHostPosition(t, playing){
+  if(!db || !smCurrentSession) return;
+  const payload = { t, playing, hostTs: Date.now(), videoId: smCurrentSession.videoId||'' };
+  db.ref('shadowlink/shadowmusic/sync').set(payload);
+  smLastSyncData = payload;
+  smLastBroadcastT = t;
+  smLastBroadcastPlaying = playing;
+}
 
-    const tChanged = Math.abs(t - smLastBroadcastT) > 1.5; // seek or normal drift
-    const stateChanged = playing !== smLastBroadcastPlaying;
-
-    if(tChanged || stateChanged || smLastBroadcastT < 0){
-      smLastBroadcastT = t;
-      smLastBroadcastPlaying = playing;
-      const payload = { t, playing, hostTs: Date.now(), videoId: smCurrentSession.videoId||'' };
-      db.ref('shadowlink/shadowmusic/sync').set(payload);
-      smLastSyncData = payload;
-      smUpdateSyncUI(true, playing ? 'LIVE' : 'PAUSED');
-    }
-  }catch(err){}
+// Host seek controls — since Invidious iframe doesn't expose JS API,
+// host can use +/- buttons to seek and broadcast new position
+function smHostSeek(delta){
+  if(!smIsHost || !smCurrentSession) return;
+  const elapsed = (Date.now() - (smCurrentSession.startedAt||Date.now())) / 1000;
+  const newT = Math.max(0, elapsed + delta);
+  // Update session startedAt so seek reflects in wallclock
+  const newStartedAt = Date.now() - (newT * 1000);
+  smCurrentSession.startedAt = newStartedAt;
+  db.ref('shadowlink/shadowmusic/session/startedAt').set(newStartedAt);
+  smBroadcastHostPosition(newT, true);
+  showToast(`◈ SEEKED TO ${Math.floor(newT/60)}:${String(Math.floor(newT%60)).padStart(2,'0')}`);
 }
 
 function smStopHostSync(){
   clearInterval(smSyncInterval); smSyncInterval=null;
-  window.removeEventListener('message', smHandleYTMessage);
   smLastBroadcastT = -1;
   smLastBroadcastPlaying = null;
 }
+
+// Dummy — kept for compatibility
+function smHandleYTMessage(e){}
 
 // Listener: called once on join to snap to host position
 async function smFetchAndApplySync(){
@@ -3603,63 +3635,34 @@ let smListenerLastSyncTs = -1;
 // ── CORE: apply sync to listener ──
 // force=true  → always seek (used on join / manual resync)
 // force=false → only seek if drift > threshold (used on Firebase updates)
+// ── LISTENER SYNC: wallclock based ──
+// Since Invidious doesn't expose JS API, we can't seekTo via postMessage.
+// Instead: when joining, we reload iframe with &t= so it starts at correct position.
+// Ongoing sync just shows drift status — no interruptions.
 function smApplySyncToListener(sync, force=false){
   if(!sync || typeof sync.t !== 'number') return;
   smLastSyncData = sync;
 
   const now = Date.now();
   const networkElapsed = (now - (sync.hostTs||now)) / 1000;
-  // Where host is RIGHT NOW
   const hostCurrentT = Math.max(0, sync.t + (sync.playing ? networkElapsed : 0));
 
-  const iframe = el('smIframe');
-  if(!iframe) return;
+  smListenerLastKnownT = smListenerLastKnownT >= 0 ? smListenerLastKnownT : hostCurrentT;
+  const listenerEstimated = smListenerLastKnownT + (now - (smListenerLastSyncTs||now)) / 1000;
+  const drift = Math.abs(listenerEstimated - hostCurrentT);
 
-  if(force){
-    // Hard sync: seek to exact position then immediately play
-    try{
-      iframe.contentWindow.postMessage(JSON.stringify({event:'command',func:'seekTo',args:[hostCurrentT, true]}),'*');
-      // Small delay to let seek complete, then play
-      if(sync.playing){
-        setTimeout(()=>{
-          try{ iframe.contentWindow.postMessage(JSON.stringify({event:'command',func:'playVideo',args:[]}),'*'); }catch(e){}
-        }, 300);
-      }
-    }catch(e){}
-    smListenerLastKnownT = hostCurrentT;
-    smListenerLastSyncTs = now;
+  if(force || drift > 15){
+    // Reload iframe at correct position — only option without YT JS API
+    const wrap = el('smEmbedWrap');
+    if(wrap && smCurrentSession){
+      let src = smCurrentSession.embedUrl + `&t=${Math.floor(hostCurrentT)}`;
+      wrap.innerHTML = `<iframe id="smIframe" src="${src}" data-url="${smCurrentSession.embedUrl}" width="100%" height="${smGetEmbedHeight(smCurrentSession.platform)}" allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture" allowfullscreen></iframe>`;
+    }
     smUpdateSyncUI(false, `SYNCED · ${Math.floor(hostCurrentT/60)}:${String(Math.floor(hostCurrentT%60)).padStart(2,'0')}`);
-    return;
-  }
-
-  // Soft sync: calculate drift, only correct if needed
-  const listenerEstimated = smListenerLastKnownT >= 0
-    ? smListenerLastKnownT + (now - smListenerLastSyncTs) / 1000
-    : -1;
-
-  const drift = listenerEstimated >= 0 ? Math.abs(listenerEstimated - hostCurrentT) : 999;
-
-  if(drift > 5){
-    // Significant drift — seek and play without interrupting if close
-    try{
-      iframe.contentWindow.postMessage(JSON.stringify({event:'command',func:'seekTo',args:[hostCurrentT, true]}),'*');
-      if(sync.playing){
-        setTimeout(()=>{
-          try{ iframe.contentWindow.postMessage(JSON.stringify({event:'command',func:'playVideo',args:[]}),'*'); }catch(e){}
-        }, 300);
-      }
-    }catch(e){}
-    smUpdateSyncUI(false, `RESYNCED · ${Math.floor(hostCurrentT/60)}:${String(Math.floor(hostCurrentT%60)).padStart(2,'0')}`);
-  } else if(drift > 2){
-    // Minor drift — nudge only, don't seek
-    smUpdateSyncUI(false, `IN SYNC · ${Math.round(drift*10)/10}s`);
+  } else if(drift > 5){
+    smUpdateSyncUI(false, `DRIFT ${Math.round(drift)}s · ↻ RESYNC`);
   } else {
-    smUpdateSyncUI(false, 'IN SYNC ✓');
-  }
-
-  // Ensure play state matches — only send play, never force pause
-  if(sync.playing){
-    try{ iframe.contentWindow.postMessage(JSON.stringify({event:'command',func:'playVideo',args:[]}),'*'); }catch(e){}
+    smUpdateSyncUI(false, `IN SYNC ✓ · ${Math.round(drift*10)/10}s`);
   }
 
   smListenerLastKnownT = hostCurrentT;
