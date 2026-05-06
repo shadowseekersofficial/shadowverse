@@ -1,0 +1,718 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Shadow Card Generator — ShadowSeekers</title>
+<link href="https://fonts.googleapis.com/css2?family=Cinzel+Decorative:wght@400;700;900&family=Cinzel:wght@400;600;700&family=IM+Fell+English:ital@0;1&family=Uncial+Antiqua&family=Cormorant+Garamond:ital,wght@0,400;0,600;1,400&family=Playfair+Display:ital,wght@0,700;1,400&family=Spectral:ital,wght@0,400;1,400&family=Libre+Baskerville:ital@0;1&family=UnifrakturMaguntia&display=swap" rel="stylesheet">
+<style>
+:root {
+  --gold:#c9a84c;--gold-light:#f0d080;--gold-dim:#6a5020;
+  --bg-deep:#060606;--bg-panel:#0f0f0f;--bg-section:#141414;
+  --border:#222;--border-gold:#2e2208;
+  --text:#e0d8c8;--text-dim:#666;--text-mid:#999;
+}
+*{margin:0;padding:0;box-sizing:border-box;}
+body{background:var(--bg-deep);color:var(--text);font-family:'Cinzel',serif;min-height:100vh;overflow-x:hidden;}
+body::before{content:'';position:fixed;inset:0;background:radial-gradient(ellipse 100% 60% at 50% -10%,rgba(201,168,76,.035) 0%,transparent 65%),radial-gradient(ellipse 50% 100% at 100% 50%,rgba(100,20,20,.025) 0%,transparent 60%);pointer-events:none;z-index:0;}
+
+header{position:relative;z-index:10;display:flex;align-items:center;justify-content:space-between;padding:13px 26px;border-bottom:1px solid var(--border-gold);background:linear-gradient(180deg,#0a0a0a 0%,transparent 100%);}
+.logo{display:flex;align-items:center;gap:10px;}
+.logo-mark{width:30px;height:30px;border:1.5px solid var(--gold);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;color:var(--gold);box-shadow:0 0 14px rgba(201,168,76,.25);flex-shrink:0;}
+.logo-name{font-family:'Cinzel Decorative',serif;font-size:10px;color:var(--gold);letter-spacing:3px;text-transform:uppercase;}
+.header-right{display:flex;align-items:center;gap:10px;}
+.mode-toggle{display:flex;background:var(--bg-section);border:1px solid var(--border-gold);border-radius:4px;overflow:hidden;}
+.mode-btn{padding:6px 16px;font-family:'Cinzel',serif;font-size:9px;letter-spacing:2px;text-transform:uppercase;background:transparent;color:var(--text-dim);border:none;cursor:pointer;transition:all .2s;}
+.mode-btn.active{background:var(--gold);color:#000;font-weight:700;}
+#adminSecretWrap{display:none;align-items:center;gap:6px;}
+#adminSecretWrap.show{display:flex;}
+#adminSecretInput{background:var(--bg-section);border:1px solid var(--border-gold);border-radius:3px;color:var(--text);font-family:'Cinzel',serif;font-size:9px;padding:5px 9px;outline:none;width:150px;letter-spacing:1px;}
+#adminSecretInput:focus{border-color:var(--gold-dim);}
+.sync-badge{display:inline-flex;align-items:center;gap:5px;font-size:8px;letter-spacing:1.5px;color:var(--text-dim);text-transform:uppercase;padding:3px 8px;background:var(--bg-section);border:1px solid var(--border);border-radius:10px;}
+.sync-dot{width:5px;height:5px;border-radius:50%;background:var(--text-dim);}
+.sync-badge.synced .sync-dot{background:#6abf6a;box-shadow:0 0 6px #3a8a3a;}
+.sync-badge.syncing .sync-dot{background:var(--gold);animation:pulse 1s infinite;}
+.sync-badge.error .sync-dot{background:#bf6a6a;}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+
+.app{position:relative;z-index:1;display:flex;height:calc(100vh - 55px);}
+
+/* SIDEBAR */
+.sidebar{width:296px;min-width:296px;background:var(--bg-panel);border-right:1px solid var(--border);overflow-y:auto;overflow-x:hidden;display:flex;flex-direction:column;}
+.sidebar::-webkit-scrollbar{width:3px;}
+.sidebar::-webkit-scrollbar-thumb{background:var(--border-gold);}
+.card-tabs{display:grid;grid-template-columns:repeat(5,1fr);gap:3px;padding:9px;background:var(--bg-section);border-bottom:1px solid var(--border);flex-shrink:0;}
+.card-tab{padding:5px 2px;font-family:'Cinzel',serif;font-size:8px;letter-spacing:1px;text-align:center;background:transparent;color:var(--text-dim);border:1px solid var(--border);border-radius:3px;cursor:pointer;transition:all .18s;text-transform:uppercase;}
+.card-tab.active{background:rgba(201,168,76,.1);color:var(--gold);border-color:var(--gold-dim);}
+.card-tab:hover:not(.active){color:var(--text-mid);}
+
+.s-sec{border-bottom:1px solid var(--border);padding:11px;}
+.s-title{font-size:8px;letter-spacing:3px;color:var(--gold-dim);text-transform:uppercase;margin-bottom:9px;display:flex;align-items:center;gap:6px;}
+.s-title::after{content:'';flex:1;height:1px;background:var(--border-gold);}
+
+.lbl{display:block;font-size:8px;letter-spacing:2px;color:var(--text-dim);text-transform:uppercase;margin-bottom:3px;margin-top:7px;}
+.lbl:first-child{margin-top:0;}
+input[type=text],input[type=number],select,textarea{width:100%;background:var(--bg-section);border:1px solid var(--border);border-radius:3px;color:var(--text);font-family:'Cinzel',serif;font-size:11px;padding:5px 8px;outline:none;transition:border-color .18s;}
+input[type=text]:focus,input[type=number]:focus,select:focus{border-color:var(--gold-dim);}
+select option{background:var(--bg-section);}
+input[type=color]{width:30px;height:25px;background:var(--bg-section);border:1px solid var(--border);border-radius:3px;cursor:pointer;padding:2px;}
+.color-row{display:flex;align-items:center;gap:5px;}
+.color-row input[type=text]{flex:1;}
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:5px;}
+.three-col{display:grid;grid-template-columns:1fr 1fr 1fr;gap:5px;}
+.rrow{display:flex;align-items:center;gap:6px;}
+input[type=range]{flex:1;height:2px;background:var(--border);border-radius:2px;appearance:none;padding:0;border:none;}
+input[type=range]::-webkit-slider-thumb{appearance:none;width:10px;height:10px;background:var(--gold);border-radius:50%;cursor:pointer;}
+.rv{font-size:10px;color:var(--gold);min-width:24px;text-align:right;}
+.font-prev{margin-top:4px;padding:5px 9px;background:var(--bg-deep);border:1px solid var(--border);border-radius:3px;font-size:16px;color:var(--gold-light);text-align:center;min-height:30px;transition:font-family .2s;}
+.url-row{display:flex;gap:5px;align-items:flex-end;}
+.url-st{font-size:8px;letter-spacing:1px;color:var(--text-dim);margin-top:3px;padding:3px 7px;background:var(--bg-deep);border:1px solid var(--border);border-radius:3px;display:none;}
+.url-st.ok{display:block;color:#6abf6a;border-color:#1a3a1a;}
+.url-st.err{display:block;color:#bf6a6a;border-color:#3a1a1a;}
+.pfp-row{display:flex;align-items:center;gap:9px;margin-top:4px;}
+.pfp-thumb{width:44px;height:44px;border-radius:50%;object-fit:cover;border:1.5px solid var(--gold-dim);display:none;flex-shrink:0;}
+.file-btn{display:flex;align-items:center;justify-content:center;gap:5px;flex:1;padding:6px 7px;background:var(--bg-section);border:1px dashed var(--gold-dim);border-radius:3px;color:var(--gold-dim);font-family:'Cinzel',serif;font-size:9px;letter-spacing:1px;cursor:pointer;transition:all .18s;text-transform:uppercase;}
+.file-btn:hover,.file-btn.has{border-style:solid;border-color:var(--gold);color:var(--gold);}
+input[type=file]{display:none;}
+.tog-row{display:flex;align-items:center;justify-content:space-between;padding:3px 0;}
+.tog-row span{font-size:8px;letter-spacing:1.5px;color:var(--text-dim);text-transform:uppercase;}
+.tog{position:relative;width:28px;height:15px;}
+.tog input{display:none;}
+.tog-sl{position:absolute;inset:0;background:var(--border);border-radius:10px;cursor:pointer;transition:.2s;}
+.tog-sl::before{content:'';position:absolute;width:9px;height:9px;left:3px;top:3px;background:var(--text-dim);border-radius:50%;transition:.2s;}
+.tog input:checked+.tog-sl{background:var(--gold-dim);}
+.tog input:checked+.tog-sl::before{transform:translateX(13px);background:var(--gold);}
+
+.btn{display:flex;align-items:center;justify-content:center;gap:5px;padding:7px 16px;font-family:'Cinzel',serif;font-size:9px;letter-spacing:2px;text-transform:uppercase;border:none;border-radius:3px;cursor:pointer;transition:all .2s;width:100%;}
+.btn-gold{background:linear-gradient(135deg,var(--gold) 0%,#9a6818 100%);color:#000;box-shadow:0 3px 12px rgba(201,168,76,.2);}
+.btn-gold:hover{box-shadow:0 3px 20px rgba(201,168,76,.35);transform:translateY(-1px);}
+.btn-ghost{background:var(--bg-section);color:var(--gold);border:1px solid var(--border-gold);}
+.btn-ghost:hover{border-color:var(--gold-dim);}
+.btn-sm{padding:5px 10px;font-size:8px;}
+.g6{height:6px;}
+.hint{font-size:8px;letter-spacing:1px;color:var(--text-dim);text-align:center;padding:5px 7px;background:rgba(201,168,76,.04);border:1px solid var(--border-gold);border-radius:3px;margin-top:5px;line-height:1.5;}
+.orn{text-align:center;color:var(--gold-dim);font-size:11px;margin:7px 0;letter-spacing:3px;}
+
+/* collapse */
+.chdr{display:flex;align-items:center;justify-content:space-between;cursor:pointer;padding:2px 0;}
+.chdr .s-title{margin-bottom:0;flex:1;}
+.carr{font-size:8px;color:var(--gold-dim);transition:transform .2s;}
+.chdr.open .carr{transform:rotate(180deg);}
+.cbody{padding-top:7px;}
+.cbody.hidden{display:none;}
+
+.mode-panel{display:none;}
+.mode-panel.active{display:block;}
+
+/* MAIN */
+.main{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:18px;gap:14px;overflow:auto;background:radial-gradient(ellipse 80% 60% at 50% 40%,#0a0906 0%,var(--bg-deep) 100%);}
+.canvas-wrap{position:relative;box-shadow:0 0 80px rgba(0,0,0,.9),0 0 30px rgba(201,168,76,.05);border-radius:3px;}
+#previewCanvas{display:block;border-radius:3px;max-width:100%;}
+#pfpOverlay{position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;border-radius:3px;display:none;}
+#pfpDragCircle{position:absolute;border:2px dashed rgba(201,168,76,.75);border-radius:50%;cursor:move;pointer-events:all;transform:translate(-50%,-50%);display:flex;align-items:center;justify-content:center;color:rgba(201,168,76,.7);font-size:9px;font-family:'Cinzel',serif;letter-spacing:1px;text-shadow:0 1px 4px #000;user-select:none;}
+#pfpDragCircle:hover{border-color:var(--gold);}
+.actions{display:flex;gap:9px;align-items:center;}
+.zoom-lbl{font-size:9px;color:var(--text-dim);letter-spacing:1px;min-width:34px;text-align:center;}
+.act-btn{padding:6px 14px;font-family:'Cinzel',serif;font-size:9px;letter-spacing:2px;text-transform:uppercase;background:var(--bg-section);color:var(--gold);border:1px solid var(--border-gold);border-radius:3px;cursor:pointer;transition:all .18s;}
+.act-btn:hover{border-color:var(--gold-dim);}
+.act-btn.primary{background:linear-gradient(135deg,var(--gold) 0%,#9a6818 100%);color:#000;border:none;box-shadow:0 3px 12px rgba(201,168,76,.2);}
+.act-btn.primary:hover{box-shadow:0 3px 20px rgba(201,168,76,.35);}
+
+#toast{position:fixed;bottom:18px;left:50%;transform:translateX(-50%) translateY(14px);background:var(--bg-section);border:1px solid var(--gold-dim);color:var(--gold);font-size:10px;letter-spacing:1.5px;padding:7px 16px;border-radius:3px;opacity:0;transition:all .25s;z-index:1000;pointer-events:none;font-family:'Cinzel',serif;}
+#toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    <div class="logo-mark">◈</div>
+    <div class="logo-name">Shadow Card Generator</div>
+  </div>
+  <div class="header-right">
+    <div id="adminSecretWrap">
+      <input type="password" id="adminSecretInput" placeholder="Admin secret…">
+    </div>
+    <div class="sync-badge" id="syncBadge">
+      <div class="sync-dot"></div>
+      <span id="syncLabel">Connecting…</span>
+    </div>
+    <div class="mode-toggle">
+      <button class="mode-btn active" id="btnGen" onclick="setMode('generate')">⚔ Generate</button>
+      <button class="mode-btn" id="btnAdmin" onclick="setMode('admin')">⚙ Admin</button>
+    </div>
+  </div>
+</header>
+
+<div class="app">
+<div class="sidebar">
+
+  <div class="card-tabs">
+    <button class="card-tab active" onclick="selectType(0)">Draven</button>
+    <button class="card-tab" onclick="selectType(1)">Nyx</button>
+    <button class="card-tab" onclick="selectType(2)">Kairo</button>
+    <button class="card-tab" onclick="selectType(3)">Lyra</button>
+    <button class="card-tab" onclick="selectType(4)">Astra</button>
+  </div>
+
+  <!-- GENERATE PANEL -->
+  <div id="genPanel" class="mode-panel active">
+    <div class="s-sec">
+      <div class="s-title">Member Info</div>
+      <label class="lbl">Member Name</label>
+      <input type="text" id="gen_name" placeholder="SAI ARVINTH" oninput="renderPreview()">
+      <label class="lbl">Shadowseeker #</label>
+      <input type="text" id="gen_number" placeholder="3138" oninput="renderPreview()">
+      <label class="lbl">Join Date</label>
+      <input type="text" id="gen_joindate" placeholder="06 March 2026" oninput="renderPreview()">
+    </div>
+    <div class="s-sec">
+      <div class="s-title">Profile Picture</div>
+      <div class="pfp-row">
+        <img id="pfpThumb" class="pfp-thumb">
+        <label class="file-btn" id="pfpFileLabel">
+          <span>↑ Upload PFP</span>
+          <input type="file" id="pfpFile" accept="image/*" onchange="loadPFP(this)">
+        </label>
+      </div>
+    </div>
+    <div class="s-sec">
+      <div class="orn">— ✦ —</div>
+      <button class="btn btn-gold" onclick="downloadCard()">⬇ Download Shadow Card</button>
+      <div class="g6"></div>
+      <button class="btn btn-ghost btn-sm" onclick="renderPreview()">↻ Refresh Preview</button>
+    </div>
+  </div>
+
+  <!-- ADMIN PANEL -->
+  <div id="adminPanel" class="mode-panel">
+
+    <!-- BG -->
+    <div class="s-sec">
+      <div class="chdr open" onclick="toggleC(this)">
+        <div class="s-title">Background Image</div><span class="carr">▾</span>
+      </div>
+      <div class="cbody">
+        <label class="lbl">Image URL (Imgur / Discord CDN)</label>
+        <div class="url-row">
+          <input type="text" id="cfg_bgImageUrl" placeholder="https://i.imgur.com/…" oninput="checkUrl('cfg_bgImageUrl','bgSt')">
+          <button class="act-btn btn-sm" onclick="applyUrl('bg')">Apply</button>
+        </div>
+        <div class="url-st" id="bgSt"></div>
+        <div class="hint">Paste direct image URL — Imgur, Discord CDN, etc.</div>
+      </div>
+    </div>
+
+    <!-- QR -->
+    <div class="s-sec">
+      <div class="chdr open" onclick="toggleC(this)">
+        <div class="s-title">QR Code</div><span class="carr">▾</span>
+      </div>
+      <div class="cbody">
+        <label class="lbl">QR Image URL</label>
+        <div class="url-row">
+          <input type="text" id="cfg_qrImageUrl" placeholder="https://i.imgur.com/…" oninput="checkUrl('cfg_qrImageUrl','qrSt')">
+          <button class="act-btn btn-sm" onclick="applyUrl('qr')">Apply</button>
+        </div>
+        <div class="url-st" id="qrSt"></div>
+        <label class="lbl">Size (px)</label>
+        <div class="rrow">
+          <input type="range" id="cfg_qrSize" min="40" max="150" value="70" oninput="rvUpdate('cfg_qrSize','rv_qrSize');renderPreview()">
+          <span class="rv" id="rv_qrSize">70</span>
+        </div>
+        <div class="two-col" style="margin-top:5px">
+          <div><label class="lbl">X (%)</label><input type="number" id="cfg_qrX" value="5" min="0" max="95" oninput="renderPreview()"></div>
+          <div><label class="lbl">Y (%)</label><input type="number" id="cfg_qrY" value="80" min="0" max="95" oninput="renderPreview()"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- PFP Circle -->
+    <div class="s-sec">
+      <div class="chdr open" onclick="toggleC(this)">
+        <div class="s-title">PFP Circle</div><span class="carr">▾</span>
+      </div>
+      <div class="cbody">
+        <div class="hint">◈ Drag the dashed ring on the preview to reposition</div>
+        <label class="lbl" style="margin-top:7px">Diameter (px)</label>
+        <div class="rrow">
+          <input type="range" id="cfg_pfpSize" min="60" max="350" value="180" oninput="rvUpdate('cfg_pfpSize','rv_pfpSize');updatePFPCircle();renderPreview()">
+          <span class="rv" id="rv_pfpSize">180</span>
+        </div>
+        <div class="two-col" style="margin-top:5px">
+          <div><label class="lbl">X (%)</label><input type="number" id="cfg_pfpX" value="22" min="0" max="100" step="0.1" oninput="syncDrag();renderPreview()"></div>
+          <div><label class="lbl">Y (%)</label><input type="number" id="cfg_pfpY" value="45" min="0" max="100" step="0.1" oninput="syncDrag();renderPreview()"></div>
+        </div>
+        <label class="lbl">Ring Color</label>
+        <div class="color-row">
+          <input type="color" id="cfg_ringColor" value="#c9a84c" oninput="syncCT('cfg_ringColor','cfg_ringColorT');renderPreview()">
+          <input type="text" id="cfg_ringColorT" value="#c9a84c" oninput="syncCP('cfg_ringColorT','cfg_ringColor');renderPreview()">
+        </div>
+        <label class="lbl">Ring Thickness</label>
+        <div class="rrow">
+          <input type="range" id="cfg_ringThickness" min="1" max="20" value="4" oninput="rvUpdate('cfg_ringThickness','rv_ring');renderPreview()">
+          <span class="rv" id="rv_ring">4</span>
+        </div>
+        <label class="lbl">Ring Glow</label>
+        <div class="rrow">
+          <input type="range" id="cfg_ringGlow" min="0" max="40" value="10" oninput="rvUpdate('cfg_ringGlow','rv_rg');renderPreview()">
+          <span class="rv" id="rv_rg">10</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Archetype & Text -->
+    <div class="s-sec">
+      <div class="chdr open" onclick="toggleC(this)">
+        <div class="s-title">Archetype & Text</div><span class="carr">▾</span>
+      </div>
+      <div class="cbody">
+        <label class="lbl">Archetype Name</label>
+        <input type="text" id="cfg_archetypeName" placeholder="NYX" oninput="updateFontPrev();renderPreview()">
+        <label class="lbl">Tagline</label>
+        <input type="text" id="cfg_tagline" placeholder="Child of the Night" oninput="renderPreview()">
+        <label class="lbl">Ornament Character</label>
+        <input type="text" id="cfg_ornamentChar" value="⸻ ✦ ⸻" oninput="renderPreview()">
+        <div class="tog-row" style="margin-top:7px">
+          <span>Show ornaments</span>
+          <label class="tog"><input type="checkbox" id="cfg_showOrnament" checked onchange="renderPreview()"><span class="tog-sl"></span></label>
+        </div>
+      </div>
+    </div>
+
+    <!-- Typography -->
+    <div class="s-sec">
+      <div class="chdr open" onclick="toggleC(this)">
+        <div class="s-title">Typography</div><span class="carr">▾</span>
+      </div>
+      <div class="cbody">
+        <label class="lbl">Archetype Font</label>
+        <select id="cfg_archetypeFont" onchange="updateFontPrev();renderPreview()">
+          <option value="'Cinzel Decorative', serif">Cinzel Decorative</option>
+          <option value="'Cinzel', serif">Cinzel</option>
+          <option value="'IM Fell English', serif">IM Fell English</option>
+          <option value="'Uncial Antiqua', cursive">Uncial Antiqua</option>
+          <option value="'UnifrakturMaguntia', cursive">UnifrakturMaguntia (Gothic)</option>
+          <option value="'Cormorant Garamond', serif">Cormorant Garamond</option>
+          <option value="'Playfair Display', serif">Playfair Display</option>
+          <option value="'Spectral', serif">Spectral</option>
+          <option value="'Libre Baskerville', serif">Libre Baskerville</option>
+          <option value="Georgia, serif">Georgia</option>
+          <option value="'Times New Roman', serif">Times New Roman</option>
+        </select>
+        <div class="font-prev" id="fontPrev">ARCHETYPE</div>
+
+        <label class="lbl">Tagline / Italic Font</label>
+        <select id="cfg_taglineFont" onchange="renderPreview()">
+          <option value="'IM Fell English', serif">IM Fell English</option>
+          <option value="'Cinzel', serif">Cinzel</option>
+          <option value="'Cormorant Garamond', serif">Cormorant Garamond</option>
+          <option value="'Playfair Display', serif">Playfair Display</option>
+          <option value="'Spectral', serif">Spectral</option>
+          <option value="'Libre Baskerville', serif">Libre Baskerville</option>
+          <option value="Georgia, serif">Georgia</option>
+        </select>
+
+        <label class="lbl">Member Name Font</label>
+        <select id="cfg_nameFont" onchange="renderPreview()">
+          <option value="'Cinzel', serif">Cinzel</option>
+          <option value="'Cinzel Decorative', serif">Cinzel Decorative</option>
+          <option value="'Cormorant Garamond', serif">Cormorant Garamond</option>
+          <option value="'Playfair Display', serif">Playfair Display</option>
+          <option value="'Spectral', serif">Spectral</option>
+          <option value="'Libre Baskerville', serif">Libre Baskerville</option>
+          <option value="Georgia, serif">Georgia</option>
+        </select>
+
+        <div style="margin-top:8px">
+          <label class="lbl">Archetype Size</label>
+          <div class="rrow"><input type="range" id="cfg_archetypeFontSize" min="20" max="80" value="42" oninput="rvUpdate('cfg_archetypeFontSize','rv_afs');renderPreview()"><span class="rv" id="rv_afs">42</span></div>
+          <label class="lbl">Tagline Size</label>
+          <div class="rrow"><input type="range" id="cfg_taglineFontSize" min="8" max="40" value="16" oninput="rvUpdate('cfg_taglineFontSize','rv_tfs');renderPreview()"><span class="rv" id="rv_tfs">16</span></div>
+          <label class="lbl">Member Name Size</label>
+          <div class="rrow"><input type="range" id="cfg_nameFontSize" min="10" max="40" value="18" oninput="rvUpdate('cfg_nameFontSize','rv_nfs');renderPreview()"><span class="rv" id="rv_nfs">18</span></div>
+          <label class="lbl">Sub-text Size (#, Date)</label>
+          <div class="rrow"><input type="range" id="cfg_subFontSize" min="8" max="28" value="13" oninput="rvUpdate('cfg_subFontSize','rv_sfs');renderPreview()"><span class="rv" id="rv_sfs">13</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Colors -->
+    <div class="s-sec">
+      <div class="chdr open" onclick="toggleC(this)">
+        <div class="s-title">Colors</div><span class="carr">▾</span>
+      </div>
+      <div class="cbody">
+        <label class="lbl">Archetype Name</label>
+        <div class="color-row"><input type="color" id="cfg_archetypeColor" value="#f0d080" oninput="syncCT('cfg_archetypeColor','cfg_archetypeColorT');renderPreview()"><input type="text" id="cfg_archetypeColorT" value="#f0d080" oninput="syncCP('cfg_archetypeColorT','cfg_archetypeColor');renderPreview()"></div>
+        <label class="lbl">Archetype Glow</label>
+        <div class="rrow"><input type="range" id="cfg_archetypeGlow" min="0" max="40" value="18" oninput="rvUpdate('cfg_archetypeGlow','rv_ag');renderPreview()"><span class="rv" id="rv_ag">18</span></div>
+
+        <label class="lbl">Tagline</label>
+        <div class="color-row"><input type="color" id="cfg_taglineColor" value="#d4b870" oninput="syncCT('cfg_taglineColor','cfg_taglineColorT');renderPreview()"><input type="text" id="cfg_taglineColorT" value="#d4b870" oninput="syncCP('cfg_taglineColorT','cfg_taglineColor');renderPreview()"></div>
+        <label class="lbl">Tagline Glow</label>
+        <div class="rrow"><input type="range" id="cfg_taglineGlow" min="0" max="30" value="8" oninput="rvUpdate('cfg_taglineGlow','rv_tg');renderPreview()"><span class="rv" id="rv_tg">8</span></div>
+
+        <label class="lbl">Member Name</label>
+        <div class="color-row"><input type="color" id="cfg_nameColor" value="#ffffff" oninput="syncCT('cfg_nameColor','cfg_nameColorT');renderPreview()"><input type="text" id="cfg_nameColorT" value="#ffffff" oninput="syncCP('cfg_nameColorT','cfg_nameColor');renderPreview()"></div>
+
+        <label class="lbl">Sub-text (# & Date)</label>
+        <div class="color-row"><input type="color" id="cfg_subColor" value="#c9a84c" oninput="syncCT('cfg_subColor','cfg_subColorT');renderPreview()"><input type="text" id="cfg_subColorT" value="#c9a84c" oninput="syncCP('cfg_subColorT','cfg_subColor');renderPreview()"></div>
+
+        <label class="lbl">Ornament</label>
+        <div class="color-row"><input type="color" id="cfg_ornamentColor" value="#a07838" oninput="syncCT('cfg_ornamentColor','cfg_ornamentColorT');renderPreview()"><input type="text" id="cfg_ornamentColorT" value="#a07838" oninput="syncCP('cfg_ornamentColorT','cfg_ornamentColor');renderPreview()"></div>
+      </div>
+    </div>
+
+    <!-- Text Position -->
+    <div class="s-sec">
+      <div class="chdr open" onclick="toggleC(this)">
+        <div class="s-title">Text Position</div><span class="carr">▾</span>
+      </div>
+      <div class="cbody">
+        <div class="two-col">
+          <div><label class="lbl">X (%)</label><input type="number" id="cfg_textX" value="62" min="0" max="100" step="0.5" oninput="renderPreview()"></div>
+          <div><label class="lbl">Y (%)</label><input type="number" id="cfg_textY" value="38" min="0" max="100" step="0.5" oninput="renderPreview()"></div>
+        </div>
+        <label class="lbl">Text Align</label>
+        <select id="cfg_textAlign" onchange="renderPreview()">
+          <option value="center">Center</option>
+          <option value="left">Left</option>
+          <option value="right">Right</option>
+        </select>
+        <label class="lbl">Line Spacing (extra px)</label>
+        <div class="rrow">
+          <input type="range" id="cfg_lineSpacing" min="0" max="30" value="10" oninput="rvUpdate('cfg_lineSpacing','rv_ls');renderPreview()">
+          <span class="rv" id="rv_ls">10</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Save -->
+    <div class="s-sec">
+      <div class="s-title">Config</div>
+      <button class="btn btn-gold" onclick="saveConfig()">💾 Save to Cloud</button>
+      <div class="g6"></div>
+      <button class="btn btn-ghost btn-sm" onclick="loadFromCloud()">↓ Reload from Cloud</button>
+      <div class="g6"></div>
+      <button class="btn btn-ghost btn-sm" onclick="resetConfig()" style="color:#bf6a6a;border-color:#3a1515">↺ Reset to Default</button>
+    </div>
+
+  </div><!-- /adminPanel -->
+</div><!-- /sidebar -->
+
+<div class="main">
+  <div class="canvas-wrap" id="canvasWrap">
+    <canvas id="previewCanvas" width="1050" height="600"></canvas>
+    <div id="pfpOverlay">
+      <div id="pfpDragCircle">PFP</div>
+    </div>
+  </div>
+  <div class="actions">
+    <button class="act-btn" onclick="zoomOut()">−</button>
+    <span class="zoom-lbl" id="zoomLbl">100%</span>
+    <button class="act-btn" onclick="zoomIn()">+</button>
+    <button class="act-btn primary" id="dlBtn" onclick="downloadCard()">⬇ Download PNG</button>
+  </div>
+</div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+// ═══════════════════════════════════════
+// 🔧 SET THIS to your Cloudflare Worker URL
+const WORKER_URL = 'https://worker-production-8ecb.up.railway.app'; // ← change this
+// Routes: GET /shadowcard/configs · GET /shadowcard/config/:type · POST /shadowcard/config
+// ═══════════════════════════════════════
+
+const CARD_TYPES = ['draven','nyx','kairo','lyra','astra'];
+let currentType=0, currentMode='generate', zoom=1;
+let cardConfigs={}, imgCache={}, pfpImg=null;
+
+const DEFAULTS={
+  draven:{archetypeName:'DRAVEN',tagline:'Built different. Still here.',archetypeFont:"'Cinzel Decorative', serif",taglineFont:"'IM Fell English', serif",nameFont:"'Cinzel', serif",archetypeFontSize:42,taglineFontSize:16,nameFontSize:18,subFontSize:13,archetypeColor:'#f0d080',taglineColor:'#d4b870',nameColor:'#ffffff',subColor:'#c9a84c',ornamentColor:'#a07838',ringColor:'#c9a84c',ringThickness:4,ringGlow:10,archetypeGlow:18,taglineGlow:8,textX:62,textY:38,textAlign:'center',lineSpacing:10,pfpX:15,pfpY:42,pfpSize:180,qrX:5,qrY:80,qrSize:70,showOrnament:true,ornamentChar:'⸻ ✦ ⸻',bgImageUrl:'',qrImageUrl:''},
+  nyx:{archetypeName:'NYX',tagline:'Child of the Night',archetypeFont:"'Cinzel Decorative', serif",taglineFont:"'IM Fell English', serif",nameFont:"'Cinzel', serif",archetypeFontSize:42,taglineFontSize:16,nameFontSize:18,subFontSize:13,archetypeColor:'#f0d080',taglineColor:'#d4b870',nameColor:'#ffffff',subColor:'#c9a84c',ornamentColor:'#a07838',ringColor:'#c9a84c',ringThickness:4,ringGlow:10,archetypeGlow:18,taglineGlow:8,textX:62,textY:38,textAlign:'center',lineSpacing:10,pfpX:22,pfpY:45,pfpSize:180,qrX:5,qrY:80,qrSize:70,showOrnament:true,ornamentChar:'⸻ ✦ ⸻',bgImageUrl:'',qrImageUrl:''},
+  kairo:{archetypeName:'KAIRO',tagline:'Logic is the only weapon.',archetypeFont:"'Cinzel', serif",taglineFont:"'Spectral', serif",nameFont:"'Cinzel', serif",archetypeFontSize:42,taglineFontSize:16,nameFontSize:18,subFontSize:13,archetypeColor:'#a0d0ff',taglineColor:'#80b8e8',nameColor:'#ffffff',subColor:'#7abaff',ornamentColor:'#507090',ringColor:'#7abaff',ringThickness:4,ringGlow:10,archetypeGlow:18,taglineGlow:8,textX:62,textY:38,textAlign:'center',lineSpacing:10,pfpX:22,pfpY:45,pfpSize:180,qrX:5,qrY:80,qrSize:70,showOrnament:true,ornamentChar:'── ◈ ──',bgImageUrl:'',qrImageUrl:''},
+  lyra:{archetypeName:'LYRA',tagline:'Harmony through chaos.',archetypeFont:"'IM Fell English', serif",taglineFont:"'Cormorant Garamond', serif",nameFont:"'Cinzel', serif",archetypeFontSize:42,taglineFontSize:16,nameFontSize:18,subFontSize:13,archetypeColor:'#ffb0d0',taglineColor:'#e890b0',nameColor:'#ffffff',subColor:'#ff8ab0',ornamentColor:'#904060',ringColor:'#ff8ab0',ringThickness:4,ringGlow:10,archetypeGlow:18,taglineGlow:8,textX:62,textY:38,textAlign:'center',lineSpacing:10,pfpX:22,pfpY:45,pfpSize:180,qrX:5,qrY:80,qrSize:70,showOrnament:true,ornamentChar:'~ ✦ ~',bgImageUrl:'',qrImageUrl:''},
+  astra:{archetypeName:'ASTRA',tagline:'Beyond the horizon.',archetypeFont:"'Uncial Antiqua', cursive",taglineFont:"'IM Fell English', serif",nameFont:"'Cinzel', serif",archetypeFontSize:42,taglineFontSize:16,nameFontSize:18,subFontSize:13,archetypeColor:'#d0a0ff',taglineColor:'#b880f0',nameColor:'#ffffff',subColor:'#c080ff',ornamentColor:'#704090',ringColor:'#c080ff',ringThickness:4,ringGlow:10,archetypeGlow:18,taglineGlow:8,textX:62,textY:38,textAlign:'center',lineSpacing:10,pfpX:22,pfpY:45,pfpSize:180,qrX:5,qrY:80,qrSize:70,showOrnament:true,ornamentChar:'✦ ✧ ✦',bgImageUrl:'',qrImageUrl:''},
+};
+
+function getCfg(){return cardConfigs[CARD_TYPES[currentType]];}
+function initDefaults(){CARD_TYPES.forEach(ct=>{cardConfigs[ct]={...DEFAULTS[ct]};});}
+
+// ── CLOUD ──
+function setSS(state,label){document.getElementById('syncBadge').className='sync-badge '+state;document.getElementById('syncLabel').textContent=label;}
+
+async function loadFromCloud(){
+  setSS('syncing','Loading…');
+  try{
+    const res=await fetch(`${WORKER_URL}/shadowcard/configs`);
+    if(!res.ok) throw new Error('HTTP '+res.status);
+    const data=await res.json();
+    CARD_TYPES.forEach(ct=>{cardConfigs[ct]={...DEFAULTS[ct],...(data[ct]||{})};});
+    localStorage.setItem('ssc_configs',JSON.stringify(cardConfigs));
+    setSS('synced','Synced');
+    toast('Configs loaded from cloud');
+  }catch(e){
+    setSS('error','Offline');
+    const cached=localStorage.getItem('ssc_configs');
+    if(cached){try{const p=JSON.parse(cached);CARD_TYPES.forEach(ct=>{cardConfigs[ct]={...DEFAULTS[ct],...(p[ct]||{})};});toast('Using local cache');}catch{initDefaults();}}
+    else{initDefaults();toast('Set WORKER_URL to enable sync');}
+  }
+  loadCfgToUI();renderPreview();
+}
+
+async function saveConfig(){
+  const secret=document.getElementById('adminSecretInput').value.trim();
+  if(!secret){toast('Enter admin secret key first');return;}
+  syncCfgFromUI();
+  const ct=CARD_TYPES[currentType];
+  const cfg=getCfg();
+  setSS('syncing','Saving…');
+  try{
+    const res=await fetch(`${WORKER_URL}/shadowcard/config`,{
+      method:'POST',
+      headers:{'Content-Type':'application/json','X-Admin-Secret':secret},
+      body:JSON.stringify({cardType:ct,config:cfg}),
+    });
+    if(res.status===401){toast('Wrong admin secret');setSS('error','Auth fail');return;}
+    if(!res.ok) throw new Error('HTTP '+res.status);
+    const cached=localStorage.getItem('ssc_configs');
+    const all=cached?JSON.parse(cached):{};
+    all[ct]=cfg; localStorage.setItem('ssc_configs',JSON.stringify(all));
+    setSS('synced','Synced');
+    toast(ct.toUpperCase()+' saved to cloud ✓');
+  }catch(e){setSS('error','Failed');toast('Save failed — check Worker URL & secret');console.error(e);}
+}
+
+// ── IMAGE CACHE ──
+function loadImg(src){
+  return new Promise(res=>{
+    if(!src){res(null);return;}
+    if(imgCache[src]){res(imgCache[src]);return;}
+    const img=new Image();img.crossOrigin='anonymous';
+    img.onload=()=>{imgCache[src]=img;res(img);};
+    img.onerror=()=>res(null);
+    img.src=src;
+  });
+}
+
+// ── CANVAS RENDER ──
+const canvas=document.getElementById('previewCanvas');
+const ctx=canvas.getContext('2d');
+
+async function renderPreview(){
+  const cfg=getCfg();
+  const W=canvas.width,H=canvas.height;
+  ctx.clearRect(0,0,W,H);
+
+  // BG
+  const bgImg=await loadImg(cfg.bgImageUrl);
+  if(bgImg){ctx.drawImage(bgImg,0,0,W,H);}
+  else{
+    const g=ctx.createRadialGradient(W*.6,H*.3,0,W*.5,H*.5,W*.7);
+    g.addColorStop(0,'#1c1408');g.addColorStop(.5,'#0d0d0d');g.addColorStop(1,'#040404');
+    ctx.fillStyle=g;ctx.fillRect(0,0,W,H);
+    ctx.save();ctx.font="12px 'Cinzel',serif";ctx.fillStyle='#2a2010';
+    ctx.textAlign='center';ctx.fillText('Upload background URL in Admin mode',W/2,H/2);ctx.restore();
+  }
+
+  // PFP
+  const px=(cfg.pfpX/100)*W, py=(cfg.pfpY/100)*H, pr=cfg.pfpSize/2;
+  if(pfpImg){
+    ctx.save();ctx.beginPath();ctx.arc(px,py,pr-cfg.ringThickness/2,0,Math.PI*2);ctx.clip();
+    const iw=pfpImg.naturalWidth,ih=pfpImg.naturalHeight,sc=Math.max(pr*2/iw,pr*2/ih);
+    ctx.drawImage(pfpImg,px-iw*sc/2,py-ih*sc/2,iw*sc,ih*sc);ctx.restore();
+  }
+  ctx.save();ctx.beginPath();ctx.arc(px,py,pr,0,Math.PI*2);
+  ctx.strokeStyle=cfg.ringColor;ctx.lineWidth=cfg.ringThickness;
+  ctx.shadowColor=cfg.ringColor;ctx.shadowBlur=cfg.ringGlow||10;ctx.stroke();ctx.restore();
+
+  // QR
+  const qrImg=await loadImg(cfg.qrImageUrl);
+  if(qrImg)ctx.drawImage(qrImg,(cfg.qrX/100)*W,(cfg.qrY/100)*H,cfg.qrSize,cfg.qrSize);
+
+  // TEXT
+  let tx=(cfg.textX/100)*W, ty=(cfg.textY/100)*H;
+  const ls=cfg.lineSpacing||10;
+  ctx.textAlign=cfg.textAlign||'center';
+
+  // Archetype
+  ctx.save();ctx.font=`bold ${cfg.archetypeFontSize}px ${cfg.archetypeFont}`;
+  ctx.fillStyle=cfg.archetypeColor;ctx.shadowColor=cfg.archetypeColor;ctx.shadowBlur=cfg.archetypeGlow||18;
+  ctx.fillText(cfg.archetypeName||'',tx,ty);ctx.restore();
+  ty+=cfg.archetypeFontSize*.45+ls;
+
+  // Ornament 1
+  if(cfg.showOrnament){
+    ctx.save();ctx.font=`11px 'Cinzel',serif`;ctx.fillStyle=cfg.ornamentColor||cfg.taglineColor;
+    ctx.fillText(cfg.ornamentChar||'⸻ ✦ ⸻',tx,ty);ctx.restore();ty+=18+ls*.5;
+  }
+
+  // Tagline
+  ctx.save();ctx.font=`italic ${cfg.taglineFontSize}px ${cfg.taglineFont||"'IM Fell English',serif"}`;
+  ctx.fillStyle=cfg.taglineColor;ctx.shadowColor=cfg.taglineColor;ctx.shadowBlur=cfg.taglineGlow||8;
+  ctx.fillText(cfg.tagline||'',tx,ty);ctx.restore();ty+=cfg.taglineFontSize*1.2+ls;
+
+  // Ornament 2
+  if(cfg.showOrnament){
+    ctx.save();ctx.font=`11px 'Cinzel',serif`;ctx.fillStyle=cfg.ornamentColor||cfg.taglineColor;
+    ctx.fillText(cfg.ornamentChar||'⸻ ✦ ⸻',tx,ty);ctx.restore();ty+=20+ls*.5;
+  }
+
+  // Member name
+  const mname=(document.getElementById('gen_name').value||'MEMBER NAME').toUpperCase();
+  ctx.save();ctx.font=`bold ${cfg.nameFontSize}px ${cfg.nameFont||"'Cinzel',serif"}`;
+  ctx.fillStyle=cfg.nameColor;ctx.shadowColor='rgba(0,0,0,.9)';ctx.shadowBlur=6;
+  ctx.fillText(mname,tx,ty);ctx.restore();ty+=cfg.nameFontSize*1.4+ls;
+
+  const num=document.getElementById('gen_number').value||'0000';
+  ctx.save();ctx.font=`${cfg.subFontSize}px ${cfg.nameFont||"'Cinzel',serif"}`;
+  ctx.fillStyle=cfg.subColor;ctx.fillText('Shadowseeker #'+num,tx,ty);ctx.restore();
+  ty+=cfg.subFontSize*1.6+ls;
+
+  const jd=document.getElementById('gen_joindate').value||'DD Month YYYY';
+  ctx.save();ctx.font=`${cfg.subFontSize}px ${cfg.nameFont||"'Cinzel',serif"}`;
+  ctx.fillStyle=cfg.subColor;ctx.fillText('Joined '+jd,tx,ty);ctx.restore();
+
+  if(currentMode==='admin') updatePFPCircle();
+}
+
+// ── PFP DRAG ──
+function updatePFPCircle(){
+  const cfg=getCfg();const cr=canvas.getBoundingClientRect();
+  const sx=cr.width/canvas.width;
+  const cx=(cfg.pfpX/100)*cr.width,cy=(cfg.pfpY/100)*cr.height,r=(cfg.pfpSize/2)*sx;
+  const c=document.getElementById('pfpDragCircle');
+  c.style.left=cx+'px';c.style.top=cy+'px';c.style.width=r*2+'px';c.style.height=r*2+'px';
+}
+function syncDrag(){if(currentMode==='admin')updatePFPCircle();}
+let dragging=false,dsx,dsy,dscx,dscy;
+document.getElementById('pfpDragCircle').addEventListener('mousedown',e=>{dragging=true;dsx=e.clientX;dsy=e.clientY;dscx=getCfg().pfpX;dscy=getCfg().pfpY;e.preventDefault();});
+document.addEventListener('mousemove',e=>{
+  if(!dragging)return;const cr=canvas.getBoundingClientRect();const cfg=getCfg();
+  cfg.pfpX=Math.min(100,Math.max(0,dscx+((e.clientX-dsx)/cr.width)*100));
+  cfg.pfpY=Math.min(100,Math.max(0,dscy+((e.clientY-dsy)/cr.height)*100));
+  document.getElementById('cfg_pfpX').value=cfg.pfpX.toFixed(1);
+  document.getElementById('cfg_pfpY').value=cfg.pfpY.toFixed(1);
+  updatePFPCircle();renderPreview();
+});
+document.addEventListener('mouseup',()=>{dragging=false;});
+document.getElementById('pfpDragCircle').addEventListener('touchstart',e=>{const t=e.touches[0];dragging=true;dsx=t.clientX;dsy=t.clientY;dscx=getCfg().pfpX;dscy=getCfg().pfpY;e.preventDefault();},{passive:false});
+document.addEventListener('touchmove',e=>{if(!dragging)return;const t=e.touches[0];const cr=canvas.getBoundingClientRect();const cfg=getCfg();cfg.pfpX=Math.min(100,Math.max(0,dscx+((t.clientX-dsx)/cr.width)*100));cfg.pfpY=Math.min(100,Math.max(0,dscy+((t.clientY-dsy)/cr.height)*100));document.getElementById('cfg_pfpX').value=cfg.pfpX.toFixed(1);document.getElementById('cfg_pfpY').value=cfg.pfpY.toFixed(1);updatePFPCircle();renderPreview();},{passive:false});
+document.addEventListener('touchend',()=>{dragging=false;});
+
+// ── URL CHECK ──
+function checkUrl(inputId,stId){
+  const val=document.getElementById(inputId).value.trim();
+  const st=document.getElementById(stId);
+  if(!val){st.className='url-st';return;}
+  st.className='url-st ok';st.textContent='Checking…';
+  const img=new Image();img.crossOrigin='anonymous';
+  img.onload=()=>{st.textContent=`✓ ${img.naturalWidth}×${img.naturalHeight}`;st.className='url-st ok';};
+  img.onerror=()=>{st.textContent='✗ Cannot load — check URL / CORS';st.className='url-st err';};
+  img.src=val;
+}
+function applyUrl(type){
+  const inputId=type==='bg'?'cfg_bgImageUrl':'cfg_qrImageUrl';
+  const val=document.getElementById(inputId).value.trim();
+  if(type==='bg'){getCfg().bgImageUrl=val;}else{getCfg().qrImageUrl=val;}
+  delete imgCache[val];renderPreview();toast(type==='bg'?'Background applied':'QR applied');
+}
+
+// ── PFP FILE UPLOAD ──
+function loadPFP(input){
+  const file=input.files[0];if(!file)return;
+  const reader=new FileReader();
+  reader.onload=e=>{
+    pfpImg=new Image();pfpImg.onload=()=>renderPreview();pfpImg.src=e.target.result;
+    const th=document.getElementById('pfpThumb');th.src=e.target.result;th.style.display='block';
+    document.getElementById('pfpFileLabel').querySelector('span').textContent='✓ '+file.name.slice(0,16);
+    document.getElementById('pfpFileLabel').classList.add('has');
+  };
+  reader.readAsDataURL(file);
+}
+
+// ── CARD TYPE SELECT ──
+function selectType(idx){
+  currentType=idx;
+  document.querySelectorAll('.card-tab').forEach((t,i)=>t.classList.toggle('active',i===idx));
+  loadCfgToUI();renderPreview();
+}
+
+const STR=['archetypeName','tagline','archetypeFont','taglineFont','nameFont','textAlign','ornamentChar','bgImageUrl','qrImageUrl'];
+const NUM=['archetypeFontSize','taglineFontSize','nameFontSize','subFontSize','ringThickness','ringGlow','archetypeGlow','taglineGlow','textX','textY','pfpX','pfpY','pfpSize','qrX','qrY','qrSize','lineSpacing'];
+const COL=['archetypeColor','taglineColor','nameColor','subColor','ringColor','ornamentColor'];
+const RV_MAP={'cfg_qrSize':'rv_qrSize','cfg_pfpSize':'rv_pfpSize','cfg_ringThickness':'rv_ring','cfg_ringGlow':'rv_rg','cfg_archetypeFontSize':'rv_afs','cfg_taglineFontSize':'rv_tfs','cfg_subFontSize':'rv_sfs','cfg_nameFontSize':'rv_nfs','cfg_lineSpacing':'rv_ls','cfg_archetypeGlow':'rv_ag','cfg_taglineGlow':'rv_tg'};
+
+function loadCfgToUI(){
+  const cfg=getCfg();
+  STR.forEach(f=>{const el=document.getElementById('cfg_'+f);if(el)el.value=cfg[f]??'';});
+  NUM.forEach(f=>{const el=document.getElementById('cfg_'+f);if(el)el.value=cfg[f]??0;});
+  Object.entries(RV_MAP).forEach(([rid,lid])=>{const r=document.getElementById(rid),l=document.getElementById(lid);if(r&&l)l.textContent=r.value;});
+  COL.forEach(f=>{
+    const v=cfg[f]||'#ffffff';
+    const p=document.getElementById('cfg_'+f),t=document.getElementById('cfg_'+f+'T');
+    if(p)p.value=v;if(t)t.value=v;
+  });
+  document.getElementById('cfg_showOrnament').checked=!!cfg.showOrnament;
+  updateFontPrev();
+}
+
+function syncCfgFromUI(){
+  const cfg=getCfg();
+  STR.forEach(f=>{const el=document.getElementById('cfg_'+f);if(el)cfg[f]=el.value;});
+  NUM.forEach(f=>{const el=document.getElementById('cfg_'+f);if(el)cfg[f]=parseFloat(el.value)||0;});
+  COL.forEach(f=>{const el=document.getElementById('cfg_'+f);if(el)cfg[f]=el.value;});
+  cfg.showOrnament=document.getElementById('cfg_showOrnament').checked;
+}
+
+function resetConfig(){const ct=CARD_TYPES[currentType];cardConfigs[ct]={...DEFAULTS[ct]};loadCfgToUI();renderPreview();toast('Reset — save to cloud when ready');}
+
+// ── MODE ──
+function setMode(mode){
+  currentMode=mode;
+  document.getElementById('genPanel').classList.toggle('active',mode==='generate');
+  document.getElementById('adminPanel').classList.toggle('active',mode==='admin');
+  document.getElementById('btnGen').classList.toggle('active',mode==='generate');
+  document.getElementById('btnAdmin').classList.toggle('active',mode==='admin');
+  document.getElementById('pfpOverlay').style.display=mode==='admin'?'block':'none';
+  document.getElementById('adminSecretWrap').classList.toggle('show',mode==='admin');
+  document.getElementById('dlBtn').style.display=mode==='generate'?'flex':'none';
+  if(mode==='admin'){loadCfgToUI();updatePFPCircle();}
+  renderPreview();
+}
+
+// ── DOWNLOAD ──
+async function downloadCard(){
+  await renderPreview();
+  const name=document.getElementById('gen_name').value||'member';
+  const ct=CARD_TYPES[currentType];
+  const a=document.createElement('a');
+  a.download=`shadowcard_${ct}_${name.replace(/\s+/g,'_').toLowerCase()}.png`;
+  a.href=canvas.toDataURL('image/png');a.click();toast('Downloaded!');
+}
+
+// ── ZOOM ──
+function zoomIn(){zoom=Math.min(zoom+.1,2);applyZoom();}
+function zoomOut(){zoom=Math.max(zoom-.1,.3);applyZoom();}
+function applyZoom(){canvas.style.width=(1050*zoom)+'px';canvas.style.height=(600*zoom)+'px';document.getElementById('zoomLbl').textContent=Math.round(zoom*100)+'%';if(currentMode==='admin')updatePFPCircle();}
+
+// ── HELPERS ──
+function rvUpdate(rid,lid){const l=document.getElementById(lid);if(l)l.textContent=document.getElementById(rid).value;}
+function syncCT(pid,tid){document.getElementById(tid).value=document.getElementById(pid).value;}
+function syncCP(tid,pid){const v=document.getElementById(tid).value;if(/^#[0-9a-fA-F]{6}$/.test(v))document.getElementById(pid).value=v;}
+function updateFontPrev(){const f=document.getElementById('cfg_archetypeFont').value;const n=document.getElementById('cfg_archetypeName')?.value||'ARCHETYPE';const p=document.getElementById('fontPrev');p.style.fontFamily=f;p.textContent=n||'ARCHETYPE';}
+function toggleC(hdr){const body=hdr.nextElementSibling;const open=hdr.classList.contains('open');hdr.classList.toggle('open',!open);body.classList.toggle('hidden',open);}
+let toastT;
+function toast(msg){const el=document.getElementById('toast');el.textContent=msg;el.classList.add('show');clearTimeout(toastT);toastT=setTimeout(()=>el.classList.remove('show'),2500);}
+
+// ── INIT ──
+initDefaults();
+loadFromCloud();
+document.getElementById('pfpOverlay').style.display='none';
+document.getElementById('dlBtn').style.display='flex';
+</script>
+</body>
+</html>
