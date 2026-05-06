@@ -1755,7 +1755,12 @@ async function initiateCall(type){
 
   try{
     localStream=await navigator.mediaDevices.getUserMedia({video:type==='video',audio:true});
-  }catch(e){showToast('MIC/CAMERA ACCESS DENIED');return;}
+  }catch(e){
+    showToast('MIC/CAMERA ACCESS DENIED · CHECK BROWSER PERMISSIONS');
+    // Reset all call state on failure
+    isCallActive=false; isCaller=false; currentCallId=null;
+    return;
+  }
 
   openCallModal(type, targetId?(knownMembers[targetId]||{codename:targetId}).codename.toUpperCase():'COUNCIL',
     targetId?initials((knownMembers[targetId]||{codename:targetId}).codename):'⬡',
@@ -1765,54 +1770,72 @@ async function initiateCall(type){
   // ── viz: connect local mic stream ──
   if(type==='audio'){initCallVisualizer();connectLocalCallStream(localStream);}
 
-  peerConn=new RTCPeerConnection(ICE_SERVERS);
-  localStream.getTracks().forEach(t=>peerConn.addTrack(t,localStream));
+  try{
+    peerConn=new RTCPeerConnection(ICE_SERVERS);
+    localStream.getTracks().forEach(t=>peerConn.addTrack(t,localStream));
 
-  remoteStream=new MediaStream();
-  peerConn.ontrack=ev=>{
-    ev.streams[0].getTracks().forEach(t=>remoteStream.addTrack(t));
-    if(type==='video'){el('remoteVideo').srcObject=remoteStream;el('remoteAvatar').style.display='none';}
-    else{
-      // ── viz: connect remote stream + start viz ──
-      connectRemoteCallStream(remoteStream);
-      startCallViz();
-      el('remoteAudioStatus').textContent='CONNECTED';
-    }
-    setCallStatus('LIVE');startCallTimer();
-  };
+    remoteStream=new MediaStream();
+    peerConn.ontrack=ev=>{
+      ev.streams[0].getTracks().forEach(t=>remoteStream.addTrack(t));
+      if(type==='video'){el('remoteVideo').srcObject=remoteStream;el('remoteAvatar').style.display='none';}
+      else{
+        // ── viz: connect remote stream + start viz ──
+        connectRemoteCallStream(remoteStream);
+        startCallViz();
+        el('remoteAudioStatus').textContent='CONNECTED';
+      }
+      setCallStatus('LIVE');startCallTimer();
+    };
 
-  callRef=db.ref('shadowlink/calls/'+currentCallId);
-  callRef.set({
-    callerId:myUser.shadowId,callerName:myUser.codename,
-    calleeId:targetId||'__group__',
-    type:callType,status:'ringing',ts:firebase.database.ServerValue.TIMESTAMP
-  });
+    // Handle peer connection failure
+    peerConn.onconnectionstatechange=()=>{
+      if(peerConn&&(peerConn.connectionState==='failed'||peerConn.connectionState==='disconnected')){
+        showToast('CONNECTION LOST · CALL ENDED');
+        hangUp(false);
+      }
+    };
 
-  peerConn.onicecandidate=ev=>{if(ev.candidate)callRef.child('callerCandidates').push(ev.candidate.toJSON());};
+    callRef=db.ref('shadowlink/calls/'+currentCallId);
+    callRef.set({
+      callerId:myUser.shadowId,callerName:myUser.codename,
+      calleeId:targetId||'__group__',
+      type:callType,status:'ringing',ts:firebase.database.ServerValue.TIMESTAMP
+    });
 
-  const offer=await peerConn.createOffer();
-  await peerConn.setLocalDescription(offer);
-  callRef.child('offer').set({type:offer.type,sdp:offer.sdp});
+    peerConn.onicecandidate=ev=>{if(ev.candidate)callRef.child('callerCandidates').push(ev.candidate.toJSON());};
 
-  callRef.child('answer').on('value',async snap=>{
-    const ans=snap.val();
-    if(ans&&peerConn&&!peerConn.currentRemoteDescription)
-      await peerConn.setRemoteDescription(new RTCSessionDescription(ans));
-  });
-  callRef.child('calleeCandidates').on('child_added',async snap=>{
-    const c=snap.val();if(c&&peerConn)await peerConn.addIceCandidate(new RTCIceCandidate(c));
-  });
-  callRef.child('status').on('value',snap=>{if(snap.val()==='ended'&&isCallActive)hangUp(true);});
+    const offer=await peerConn.createOffer();
+    await peerConn.setLocalDescription(offer);
+    callRef.child('offer').set({type:offer.type,sdp:offer.sdp});
 
-  showToast('◈ CALLING · SHADOW PROTOCOL ACTIVE');
+    callRef.child('answer').on('value',async snap=>{
+      const ans=snap.val();
+      if(ans&&peerConn&&!peerConn.currentRemoteDescription)
+        await peerConn.setRemoteDescription(new RTCSessionDescription(ans));
+    });
+    callRef.child('calleeCandidates').on('child_added',async snap=>{
+      const c=snap.val();if(c&&peerConn)await peerConn.addIceCandidate(new RTCIceCandidate(c));
+    });
+    callRef.child('status').on('value',snap=>{if(snap.val()==='ended'&&isCallActive)hangUp(true);});
+
+    showToast('◈ CALLING · SHADOW PROTOCOL ACTIVE');
+  }catch(err){
+    console.error('Call setup error:',err);
+    showToast('CALL FAILED · CHECK CONNECTION');
+    hangUp(false);
+  }
 }
 
 function listenForIncomingCalls(){
-  db.ref('shadowlink/calls').on('child_added',async snap=>{
+  // Only listen for calls created AFTER login time (ignore stale calls on refresh)
+  const listenFromTs = Date.now() - 5000; // 5 sec buffer
+  db.ref('shadowlink/calls').orderByChild('ts').startAfter(listenFromTs).on('child_added',async snap=>{
     const call=snap.val();
     if(!call) return;
     const isForMe=call.calleeId===myUser.shadowId||call.calleeId==='__group__';
     if(!isForMe||call.callerId===myUser.shadowId||call.status!=='ringing'||isCallActive) return;
+    // Double-check: ignore calls older than 30 seconds
+    if(call.ts && (Date.now() - call.ts) > 30000) return;
 
     currentCallId=snap.key;
     callRef=db.ref('shadowlink/calls/'+currentCallId);
@@ -1842,42 +1865,57 @@ async function acceptCall(){
   const callerName=el('incomingName').textContent;
   try{
     localStream=await navigator.mediaDevices.getUserMedia({video:callType==='video',audio:true});
-  }catch(e){showToast('MIC/CAMERA ACCESS DENIED');return;}
+  }catch(e){showToast('MIC/CAMERA ACCESS DENIED · CHECK BROWSER PERMISSIONS');callRef=null;currentCallId=null;return;}
 
   openCallModal(callType,callerName,initials(callerName),'#7c3aed,#4c1d95');
   if(callType==='video') el('localVideo').srcObject=localStream;
   // ── viz: connect local stream ──
   if(callType==='audio'){initCallVisualizer();connectLocalCallStream(localStream);}
 
-  peerConn=new RTCPeerConnection(ICE_SERVERS);
-  localStream.getTracks().forEach(t=>peerConn.addTrack(t,localStream));
+  try{
+    peerConn=new RTCPeerConnection(ICE_SERVERS);
+    localStream.getTracks().forEach(t=>peerConn.addTrack(t,localStream));
 
-  remoteStream=new MediaStream();
-  peerConn.ontrack=ev=>{
-    ev.streams[0].getTracks().forEach(t=>remoteStream.addTrack(t));
-    if(callType==='video'){el('remoteVideo').srcObject=remoteStream;el('remoteAvatar').style.display='none';}
-    else{
-      connectRemoteCallStream(remoteStream);
-      startCallViz();
-      el('remoteAudioStatus').textContent='CONNECTED';
-    }
-    setCallStatus('LIVE');startCallTimer();
-  };
+    remoteStream=new MediaStream();
+    peerConn.ontrack=ev=>{
+      ev.streams[0].getTracks().forEach(t=>remoteStream.addTrack(t));
+      if(callType==='video'){el('remoteVideo').srcObject=remoteStream;el('remoteAvatar').style.display='none';}
+      else{
+        connectRemoteCallStream(remoteStream);
+        startCallViz();
+        el('remoteAudioStatus').textContent='CONNECTED';
+      }
+      setCallStatus('LIVE');startCallTimer();
+    };
 
-  peerConn.onicecandidate=ev=>{if(ev.candidate)callRef.child('calleeCandidates').push(ev.candidate.toJSON());};
+    // Handle peer connection failure
+    peerConn.onconnectionstatechange=()=>{
+      if(peerConn&&(peerConn.connectionState==='failed'||peerConn.connectionState==='disconnected')){
+        showToast('CONNECTION LOST · CALL ENDED');
+        hangUp(false);
+      }
+    };
 
-  const offerSnap=await callRef.child('offer').once('value');
-  const offer=offerSnap.val();
-  await peerConn.setRemoteDescription(new RTCSessionDescription(offer));
-  const answer=await peerConn.createAnswer();
-  await peerConn.setLocalDescription(answer);
-  callRef.child('answer').set({type:answer.type,sdp:answer.sdp});
+    peerConn.onicecandidate=ev=>{if(ev.candidate)callRef.child('calleeCandidates').push(ev.candidate.toJSON());};
 
-  callRef.child('callerCandidates').on('child_added',async snap=>{
-    const c=snap.val();if(c&&peerConn)await peerConn.addIceCandidate(new RTCIceCandidate(c));
-  });
-  callRef.child('status').set('active');
-  callRef.child('status').on('value',snap=>{if(snap.val()==='ended'&&isCallActive)hangUp(true);});
+    const offerSnap=await callRef.child('offer').once('value');
+    const offer=offerSnap.val();
+    if(!offer){showToast('CALL OFFER MISSING · RETRY');hangUp(false);return;}
+    await peerConn.setRemoteDescription(new RTCSessionDescription(offer));
+    const answer=await peerConn.createAnswer();
+    await peerConn.setLocalDescription(answer);
+    callRef.child('answer').set({type:answer.type,sdp:answer.sdp});
+
+    callRef.child('callerCandidates').on('child_added',async snap=>{
+      const c=snap.val();if(c&&peerConn)await peerConn.addIceCandidate(new RTCIceCandidate(c));
+    });
+    callRef.child('status').set('active');
+    callRef.child('status').on('value',snap=>{if(snap.val()==='ended'&&isCallActive)hangUp(true);});
+  }catch(err){
+    console.error('Accept call error:',err);
+    showToast('CALL FAILED · CHECK CONNECTION');
+    hangUp(false);
+  }
 }
 
 function hangUp(remote=false){
@@ -1885,15 +1923,25 @@ function hangUp(remote=false){
   isCallActive=false;
   clearInterval(timerInterval);playRing(false);
   stopCallViz(); // ── stop visualizer ──
-  if(peerConn){peerConn.close();peerConn=null;}
+  if(peerConn){
+    // Remove all event handlers before closing to prevent callbacks
+    peerConn.ontrack=null;
+    peerConn.onicecandidate=null;
+    peerConn.onconnectionstatechange=null;
+    peerConn.close();
+    peerConn=null;
+  }
   if(localStream){localStream.getTracks().forEach(t=>t.stop());localStream=null;}
-  el('localVideo').srcObject=null;el('remoteVideo').srcObject=null;
-  el('remoteAvatar').style.display='';
+  if(el('localVideo')) el('localVideo').srcObject=null;
+  if(el('remoteVideo')) el('remoteVideo').srcObject=null;
+  if(el('remoteAvatar')) el('remoteAvatar').style.display='';
   if(callRef&&!remote){
     callRef.child('status').set('ended');
-    setTimeout(()=>{if(callRef)callRef.remove();callRef=null;},10000);
+    setTimeout(()=>{if(callRef){callRef.remove();callRef=null;}},10000);
+  } else {
+    callRef=null;
   }
-  el('callModal').classList.remove('active');
+  if(el('callModal')) el('callModal').classList.remove('active');
 
   const elapsed=formatTime(seconds);
   // Log call in chat
